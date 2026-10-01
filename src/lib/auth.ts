@@ -119,12 +119,31 @@ if (integrations.googleAuth) {
 
 export const { handlers, auth, signIn, signOut } = NextAuth(config);
 
+/** Next.js uses this marker to decide a route must be rendered per request. */
+const DYNAMIC_SERVER_USAGE = "DYNAMIC_SERVER_USAGE";
+
+function isDynamicUsageProbe(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "digest" in error &&
+    (error as { digest?: unknown }).digest === DYNAMIC_SERVER_USAGE
+  );
+}
+
 /**
  * Read the current session without ever throwing.
  *
  * `auth()` raises if the auth secret is missing, which would take down every
  * page that merely asks "is anyone signed in?". Returning null keeps the shop
  * browsable before Google is configured.
+ *
+ * The one error we do NOT swallow is Next.js's DYNAMIC_SERVER_USAGE probe.
+ * Reading cookies is exactly how Next.js detects that a route must be rendered
+ * per request, so this "error" is expected during prerendering and rethrowing
+ * it is how the route correctly becomes dynamic. Catching it instead leaves
+ * those routes stuck as static with a stale session, and fills the build log
+ * with alarming-looking stack traces.
  */
 export async function getSession() {
   if (!integrations.googleAuth) {
@@ -134,6 +153,10 @@ export async function getSession() {
   try {
     return await auth();
   } catch (error) {
+    if (isDynamicUsageProbe(error)) {
+      throw error;
+    }
+
     console.error("[auth] could not read session:", error);
     return null;
   }

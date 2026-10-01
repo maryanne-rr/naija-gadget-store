@@ -1,6 +1,6 @@
 "use server";
 
-import { signOut } from "@/lib/auth";
+import { signIn, signOut } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 
 /**
@@ -11,13 +11,31 @@ import { revalidatePath } from "next/cache";
  * and the browser cannot be trusted to send the right redirect URL.
  */
 
-export async function signOutAction() {
-  // Where to land afterwards. Deliberately a hard-coded path rather than
-  // anything the browser sends - a crafted value could otherwise bounce someone
-  // to an attacker's site after they sign out.
-  const redirectTo = "/";
+/**
+ * Start Google sign-in.
+ *
+ * WHY THIS IS NOT A PLAIN LINK
+ * The obvious version is `<a href="/api/auth/signin/google">`. That does not
+ * work with Auth.js v5 - it answers
+ *
+ *     302 -> /login?error=Configuration      "Unsupported action"
+ *
+ * because Auth.js protects its own endpoints with CSRF. The real flow is
+ *
+ *     GET  /api/auth/csrf             -> { csrfToken }
+ *     POST /api/auth/signin/google    with that token
+ *
+ * Doing that in a server action means the token is never handled in client code
+ * at all, which is both simpler and safer than wiring it up by hand.
+ *
+ * The post-login destination is hard-coded, never taken from the browser.
+ */
+export async function signInWithGoogle() {
+  await signIn("google", { redirectTo: "/" });
+}
 
-  await signOut({ redirectTo });
+export async function signOutAction() {
+  await signOut({ redirectTo: "/" });
 
   revalidatePath("/", "layout");
 }

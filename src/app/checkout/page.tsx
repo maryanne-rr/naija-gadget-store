@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getSession, authIsConfigured } from "@/lib/auth";
 import { integrations } from "@/lib/env";
+import { GoogleSignInButton } from "@/components/GoogleSignInButton";
 import { CheckoutForm } from "./CheckoutForm";
 
 /**
@@ -68,21 +69,22 @@ export default async function CheckoutPage({ searchParams }: PageProps<"/checkou
       ) : (
         <div className="rounded-xl border border-ink-200 bg-white p-4 text-sm dark:border-ink-700 dark:bg-ink-800">
           <p className="font-medium">Checking out as a guest</p>
-          <p className="mt-1 text-ink-500">
-            {authIsConfigured() ? (
-              <>
-                You can{" "}
-                {/* eslint-disable-next-line @next/next/no-html-link-for-pages --
-                    Redirect into Google's OAuth flow, not a page navigation. */}
-                <a href="/api/auth/signin/google" className="underline">
-                  sign in with Google
-                </a>{" "}
-                to keep this order in your history.
-              </>
-            ) : (
-              "Google sign in is not configured yet, so orders will not appear in a history."
-            )}
-          </p>
+          {authIsConfigured() ? (
+            <>
+              <p className="mt-1 text-ink-500">
+                Signing in keeps this order in your history.
+              </p>
+              <div className="mt-3">
+                <GoogleSignInButton
+                  className="rounded-lg border border-ink-300 px-4 py-2 text-sm font-semibold hover:bg-ink-100 dark:border-ink-600 dark:hover:bg-ink-800"
+                />
+              </div>
+            </>
+          ) : (
+            <p className="mt-1 text-ink-500">
+              Google sign in is not configured yet, so orders will not appear in a history.
+            </p>
+          )}
         </div>
       )}
 

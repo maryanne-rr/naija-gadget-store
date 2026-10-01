@@ -1,5 +1,11 @@
 import Link from "next/link";
 
+/**
+ * This page is inherently per-request anyway - the header above it shows a
+ * different account menu to a signed-in visitor than to a guest, so it can
+ * never be prerendered. Nothing extra is needed here; see the note on
+ * getSession() in src/lib/auth.ts for why the build used to complain.
+ */
 export default function NotFound() {
   return (
     <div className="py-24 text-center">

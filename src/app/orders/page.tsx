@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { connection } from "next/server";
+import { GoogleSignInButton } from "@/components/GoogleSignInButton";
 import { getSession } from "@/lib/auth";
 import { integrations } from "@/lib/env";
 import { listOrdersForUser, listItemsForOrders } from "@/lib/orders";
@@ -37,14 +38,12 @@ export default async function OrdersPage() {
         <p className="mt-2 text-ink-500">
           Your order history is tied to your Google account.
         </p>
-        {/* eslint-disable-next-line @next/next/no-html-link-for-pages --
-            A redirect into Google's OAuth flow, not a page navigation. */}
-        <a
-          href="/api/auth/signin/google"
-          className="mt-6 inline-block rounded-lg bg-brand-600 px-5 py-2.5 font-semibold text-white hover:bg-brand-700"
-        >
-          Sign in with Google
-        </a>
+        <div className="mt-6">
+          <GoogleSignInButton
+            label="Sign in with Google"
+            className="rounded-lg bg-brand-600 px-5 py-2.5 font-semibold text-white hover:bg-brand-700"
+          />
+        </div>
       </div>
     );
   }

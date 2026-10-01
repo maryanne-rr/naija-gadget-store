@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCart } from "./cart/CartProvider";
 import { signOutAction } from "@/app/actions";
+import { GoogleSignInButton } from "./GoogleSignInButton";
 
 /**
  * Site header: navigation, cart badge and the account menu.
@@ -64,16 +65,9 @@ export function SiteHeader({ user, authReady }: { user: HeaderUser | null; authR
               </form>
             </div>
           ) : authReady ? (
-            /* eslint-disable-next-line @next/next/no-html-link-for-pages --
-               Not a page navigation: this hands off to Google via a redirect,
-               and client-side routing would break the OAuth handshake. */
-            <a
-              href="/api/auth/signin/google"
-              className="flex items-center gap-2 rounded-lg border border-ink-300 px-3 py-2 text-sm font-semibold hover:bg-ink-100 dark:border-ink-600 dark:hover:bg-ink-800"
-            >
-              <GoogleMark />
-              Sign in
-            </a>
+            <GoogleSignInButton
+              className="rounded-lg border border-ink-300 px-3 py-2 text-sm font-semibold hover:bg-ink-100 dark:border-ink-600 dark:hover:bg-ink-800"
+            />
           ) : (
             <span
               className="rounded-lg border border-dashed border-ink-300 px-3 py-2 text-sm text-ink-400 dark:border-ink-600"
@@ -104,28 +98,5 @@ export function SiteHeader({ user, authReady }: { user: HeaderUser | null; authR
         </nav>
       </div>
     </header>
-  );
-}
-
-function GoogleMark() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        fill="#4285F4"
-        d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.4a5.5 5.5 0 0 1-2.4 3.6v3h3.9c2.3-2.1 3.6-5.2 3.6-8.8Z"
-      />
-      <path
-        fill="#34A853"
-        d="M12 24c3.2 0 5.9-1.1 7.9-2.9l-3.9-3c-1.1.7-2.4 1.2-4 1.2-3.1 0-5.7-2.1-6.6-4.9H1.4v3.1A12 12 0 0 0 12 24Z"
-      />
-      <path
-        fill="#FBBC05"
-        d="M5.4 14.4a7.2 7.2 0 0 1 0-4.6V6.7H1.4a12 12 0 0 0 0 10.8l4-3.1Z"
-      />
-      <path
-        fill="#EA4335"
-        d="M12 4.8c1.8 0 3.3.6 4.5 1.8l3.4-3.4A12 12 0 0 0 1.4 6.7l4 3.1C6.3 6.9 8.9 4.8 12 4.8Z"
-      />
-    </svg>
   );
 }
