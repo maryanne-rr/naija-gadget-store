@@ -1,0 +1,37 @@
+# Normalise line endings so the repository behaves the same on Windows, macOS
+# and Linux.
+#
+# Without this, git warns "LF will be replaced by CRLF" on every commit on
+# Windows, and text files show the whole file as changed when a Linux user
+# checks them out. Storing LF in the repository and letting git convert on
+# checkout is the conventional arrangement.
+* text=auto eol=lf
+
+# Files that must keep CRLF on checkout.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary files - never touch line endings in these.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.pdf binary
+*.zip binary
+
+# Keep diffs useful for these.
+*.sql    text diff=sql
+*.ts     text diff=typescript
+*.tsx    text diff=typescript
+*.js     text diff=javascript
+*.mjs    text diff=javascript
+*.json   text
+*.md     text
+*.css    text
+*.yml    text
+*.yaml   text
