@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getSession, authIsConfigured } from "@/lib/auth";
-import { integrations, paymentMode } from "@/lib/env";
+import { integrations } from "@/lib/env";
 import { CheckoutForm } from "./CheckoutForm";
 
 /**
@@ -10,15 +10,10 @@ import { CheckoutForm } from "./CheckoutForm";
  * the name/email down to the form. The form itself is a Client Component.
  */
 
-/** Human wording for each `?error=` value the verify route can send back. */
+/** Human wording for each `?error=` value the checkout can be returned with. */
 const ERRORS: Record<string, string> = {
-  "missing-reference": "We lost track of your order reference. Please try again.",
-  "unknown-order": "We could not find that order.",
-  "payment-failed": "That payment was not completed. No money has left your account.",
-  "amount-mismatch":
-    "The amount received did not match the order total, so we have not shipped anything. Contact support with your order reference.",
-  "verification-failed":
-    "We could not confirm the payment with the gateway. Check with your bank, then contact us.",
+  cancelled: "You cancelled the payment. Your order is saved if you want to try again.",
+  failed: "That payment did not complete. No money has left your account.",
 };
 
 export default async function CheckoutPage({ searchParams }: PageProps<"/checkout">) {
@@ -36,9 +31,8 @@ export default async function CheckoutPage({ searchParams }: PageProps<"/checkou
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Checkout</h1>
         <p className="mt-1 text-ink-500">
-          {paymentMode === "paystack"
-            ? "You will be taken to Paystack to pay, then brought back here."
-            : "Demo mode: no payment gateway is configured, so your order is recorded as paid immediately."}
+          Next step is the payment page. No card details are collected and no
+          money moves.
         </p>
       </div>
 

@@ -1,62 +1,79 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 import { getOrderByReference, settleOrder } from "@/lib/orders";
-import { verifyPayment } from "@/lib/paystack";
+import { verifyPayment } from "@/lib/payment";
 import { sendOrderConfirmation } from "@/lib/mail";
 
 /**
- * GET /api/checkout/verify?reference=NAI-XXXX
+ * POST /api/checkout/verify  { reference }
  *
- * Paystack sends the customer back here after they have paid. This route:
- *   1. asks Paystack what actually happened (never trust the redirect alone -
- *      anyone can type this URL with any reference),
- *   2. checks the amount Paystack received matches our order total,
- *   3. marks the order paid and takes stock off the shelf,
- *   4. emails the confirmation,
- *   5. sends the customer to a real page.
+ * The payment step completed, so this is where the order actually becomes real:
+ *   1. find the order by reference
+ *   2. confirm the payment with the gateway
+ *   3. mark it paid and take stock off the shelf
+ *   4. email the confirmation
+ *   5. send the customer to their receipt
  *
- * Step 2 is the one people skip. Without it, someone could start a 50,000
- * naira order, pay 1 nara, and then hit this URL to collect the goods.
+ * WHY THIS IS A SEPARATE STEP FROM /api/checkout
+ * Creating an order and taking money for it are different events. Keeping them
+ * apart means an abandoned or abandoned-at-the-payment-page order can sit as
+ * 'pending' and be cleaned up later, rather than looking like a sale.
+ *
+ * WHY YOU WOULD NOT TRUST THE REDIRECT WITH A REAL GATEWAY
+ * With Paystack, the customer returns here by following a link - and anyone can
+ * type that link by hand with any reference. The only trustworthy source is the
+ * gateway's own API, so a real implementation calls verify and then compares the
+ * amount Paystack received against the order total before settling. Both are
+ * marked in lib/payment.ts.
  */
 
-function redirect(path: string, request: NextRequest) {
-  return NextResponse.redirect(new URL(path, request.nextUrl.origin));
-}
+export async function POST(request: Request) {
+  let reference: string | null = null;
 
-export async function GET(request: NextRequest) {
-  const reference = request.nextUrl.searchParams.get("reference");
+  try {
+    const body = (await request.json()) as { reference?: unknown };
+    if (typeof body.reference === "string") {
+      reference = body.reference;
+    }
+  } catch {
+    return NextResponse.json({ error: "Could not read the request body." }, { status: 400 });
+  }
 
   if (!reference) {
-    return redirect("/checkout?error=missing-reference", request);
+    return NextResponse.json({ error: "Missing order reference." }, { status: 400 });
   }
 
   const order = await getOrderByReference(reference);
 
   if (!order) {
-    console.warn(`[verify] no order found for reference ${reference}`);
-    return redirect("/checkout?error=unknown-order", request);
+    return NextResponse.json({ error: "We could not find that order." }, { status: 404 });
   }
 
   try {
-    const payment = await verifyPayment(reference);
+    const payment = verifyPayment(reference);
 
     if (!payment.paid) {
-      console.warn(`[verify] payment not completed for ${reference}`);
-      return redirect(`/checkout?error=payment-failed&reference=${encodeURIComponent(reference)}`, request);
+      return NextResponse.json(
+        { error: "That payment was not completed. No money has left your account." },
+        { status: 402 },
+      );
     }
 
-    // ---- The amount check. Do not remove this. ----
+    // A real gateway would be asked for the amount it received, and compared
+    // here against order.amount before we settle anything.
     if (typeof payment.amount === "number" && payment.amount !== order.amount) {
       console.error(
-        `[verify] AMOUNT MISMATCH for ${reference}: ` +
-          `Paystack received ${payment.amount} kobo but the order total is ${order.amount} kobo. ` +
-          `Not settling the order.`,
+        `[verify] amount mismatch for ${reference}: gateway reported ${payment.amount} kobo, ` +
+          `order total is ${order.amount} kobo. Not settling.`,
       );
-      return redirect(`/checkout?error=amount-mismatch&reference=${encodeURIComponent(reference)}`, request);
+      return NextResponse.json(
+        { error: "The amount received did not match the order total. Contact support." },
+        { status: 409 },
+      );
     }
 
     const { order: paid, items, alreadySettled } = await settleOrder(reference, payment.reference);
 
-    // Only email on the transition, not on every repeated callback.
+    // Only email on the transition, so a refresh cannot send it twice.
     if (!alreadySettled) {
       const email = await sendOrderConfirmation({
         to: paid.email,
@@ -71,21 +88,28 @@ export async function GET(request: NextRequest) {
         shippingAddress: [paid.shipping_address, paid.shipping_city, paid.shipping_state]
           .filter(Boolean)
           .join("\n"),
-        paidVia: payment.provider === "paystack" ? "Paystack" : "Simulated gateway",
+        paidVia: "Test payment gateway",
       });
 
       if (!email.sent) {
-        // The order is paid either way, so do not block the customer. Record it
-        // so you can resend later.
+        // The order is paid either way, so do not block the customer. Log it so
+        // the message can be resent later.
         console.warn(
           `[verify] order ${reference} is paid but the confirmation email did not send: ${email.error}`,
         );
       }
     }
 
-    return redirect(`/checkout/success?reference=${encodeURIComponent(paid.reference)}`, request);
+    return NextResponse.json({
+      ok: true,
+      reference: paid.reference,
+      redirectTo: `/checkout/success?reference=${encodeURIComponent(paid.reference)}`,
+    });
   } catch (error) {
     console.error(`[verify] failed for ${reference}:`, error);
-    return redirect(`/checkout?error=verification-failed&reference=${encodeURIComponent(reference)}`, request);
+    return NextResponse.json(
+      { error: "We could not confirm the payment. Please contact support." },
+      { status: 500 },
+    );
   }
 }

@@ -86,8 +86,10 @@ create table if not exists orders (
   amount           integer not null check (amount >= 0),
   currency         text not null default 'NGN',
 
-  payment_provider text not null default 'paystack',
-  -- Set once Paystack confirms the transaction.
+  -- Which gateway settled this order. 'dummy' is the test payment page; a real
+  -- integration would write 'paystack' or 'flutterwave' here instead.
+  payment_provider text not null default 'dummy',
+  -- The gateway's own transaction id, once one exists.
   payment_reference text,
 
   shipping_name    text not null,
@@ -120,7 +122,7 @@ create index if not exists products_featured_idx    on products (featured) where
 create index if not exists products_created_at_idx  on products (created_at desc);
 create index if not exists orders_user_id_idx       on orders (user_id, created_at desc);
 create index if not exists orders_reference_idx     on orders (reference);
-create index if not exists orders_payment_ref_idx   on orders (payment_reference);
+create index if not exists orders_status_idx        on orders (status) where status = 'pending';
 create index if not exists order_items_order_id_idx on order_items (order_id);
 
 -- ============================================================================

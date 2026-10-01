@@ -1,7 +1,7 @@
 import "server-only";
 import { integrations } from "./env";
 import { decrementStock, getProductsByIds } from "./products";
-import { generateOrderReference } from "./paystack";
+import { generateOrderReference } from "./payment";
 import { supabase } from "./supabase";
 
 /**

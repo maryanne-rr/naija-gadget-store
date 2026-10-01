@@ -75,6 +75,9 @@ check("GET /cart renders", cart.status === 200, `status ${cart.status}`);
 const checkout = await get("/checkout");
 check("GET /checkout renders", checkout.status === 200, `status ${checkout.status}`);
 
+const pay = await get("/checkout/pay?reference=NAI-SMOKETEST");
+check("GET /checkout/pay renders", pay.status === 200, `status ${pay.status}`);
+
 const orders = await get("/orders");
 check("GET /orders renders", orders.status === 200, `status ${orders.status}`);
 
@@ -142,6 +145,22 @@ check(
   signin.status === 503
     ? "503 with setup instructions (Google not configured)"
     : `status ${signin.status}`,
+);
+
+// ---------------------------------------------------------------------------
+// A GET on /api/checkout/verify must not settle anything: settling is a POST.
+const verifyGet = await get("/api/checkout/verify?reference=NAI-SMOKETEST");
+check(
+  "GET /api/checkout/verify is rejected",
+  verifyGet.status === 405 || verifyGet.status === 404,
+  `status ${verifyGet.status}`,
+);
+
+const verifyMissing = await postJson("/api/checkout/verify", {});
+check(
+  "POST verify without a reference is rejected",
+  verifyMissing.status === 400,
+  `status ${verifyMissing.status}`,
 );
 
 // ---------------------------------------------------------------------------

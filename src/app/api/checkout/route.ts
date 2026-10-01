@@ -2,14 +2,12 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { createOrder, CheckoutError } from "@/lib/orders";
-import { startPayment } from "@/lib/paystack";
-import { settleOrder } from "@/lib/orders";
-import { sendOrderConfirmation } from "@/lib/mail";
+import { startPayment } from "@/lib/payment";
 
 /**
  * POST /api/checkout
  *
- * Creates the order, then hands the customer to the payment gateway.
+ * Creates the order, then hands the customer to the payment page.
  *
  * Two things to notice:
  *
@@ -17,10 +15,9 @@ import { sendOrderConfirmation } from "@/lib/mail";
  *     recalculated from the database inside createOrder(). If this route
  *     believed a price sent by the browser, anyone could set the total to 1.
  *
- *  2. With no Paystack key configured, startPayment() returns the simulated
- *     branch and we settle the order immediately. The rest of the flow -
- *     database write, stock decrement, confirmation email - is identical, so
- *     the demo works before you have any API keys.
+ *  2. The order is saved with status 'pending' and is NOT settled here. It only
+ *     becomes 'paid' at /api/checkout/verify, after the payment step. That
+ *     split is what a real store does too.
  */
 
 const lineSchema = z.object({
@@ -87,46 +84,16 @@ export async function POST(request: Request) {
       reference: order.reference,
       email: order.email,
       amount: order.amount,
-      // order.lines is priced by the database - this is what goes in the
-      // gateway metadata, so it agrees with what the customer was charged.
+      // order.lines is priced by the database - this is what the payment page
+      // shows, so it agrees with what the customer is about to be charged.
       lines: order.lines,
       userId,
     });
 
-    // ---- Simulated mode: no gateway, so settle it right here. ----
-    if (payment.mode === "simulated") {
-      const { order: paid, items } = await settleOrder(order.reference, null);
-
-      await sendOrderConfirmation({
-        to: paid.email,
-        reference: paid.reference,
-        customerName: paid.shipping_name,
-        total: paid.amount,
-        lines: items.map((item) => ({
-          name: item.name,
-          quantity: item.quantity,
-          unitPrice: item.unit_price,
-        })),
-        shippingAddress: [paid.shipping_address, paid.shipping_city, paid.shipping_state]
-          .filter(Boolean)
-          .join("\n"),
-        paidVia: "Simulated gateway (no PAYSTACK_SECRET_KEY set)",
-      });
-
-      return NextResponse.json({
-        ok: true,
-        mode: "simulated",
-        reference: paid.reference,
-        redirectTo: `/checkout/success?reference=${encodeURIComponent(paid.reference)}`,
-      });
-    }
-
-    // ---- Real mode: send the customer to Paystack. ----
     return NextResponse.json({
       ok: true,
-      mode: "redirect",
       reference: payment.reference,
-      redirectTo: payment.authorizationUrl,
+      redirectTo: payment.redirectTo,
     });
   } catch (error) {
     if (error instanceof CheckoutError) {

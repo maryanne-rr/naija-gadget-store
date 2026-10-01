@@ -1,4 +1,4 @@
-import { integrationStatuses, paymentMode } from "@/lib/env";
+import { integrationStatuses } from "@/lib/env";
 
 /**
  * Footer with a live integration status panel.
@@ -21,7 +21,7 @@ export function SiteFooter() {
             </p>
             <p className="mt-2 max-w-sm text-sm text-ink-500">
               A bootcamp project: Next.js, Supabase Postgres, Mailgun and Google
-              sign-in, with {paymentMode === "paystack" ? "Paystack" : "a simulated"} checkout.
+              sign-in, with a test payment page.
             </p>
           </div>
 

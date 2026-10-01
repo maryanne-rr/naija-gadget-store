@@ -9,10 +9,10 @@ import { formatNaira } from "@/lib/money";
  * The checkout form.
  *
  * Walks the shopper through:
- *   1. POST /api/checkout  - server saves the order, recalculates the total and
- *                            returns either a Paystack URL or "already paid"
+ *   1. POST /api/checkout - server validates, recalculates every price from the
+ *      database, saves the order as 'pending', and returns the payment page URL
  *   2. window.location = redirectTo
- *      - a real Paystack checkout page, or the thank-you page in demo mode
+ *      - the payment page, where the order is marked paid
  *
  * Note what is sent: product ids and quantities only. Prices in this file are
  * for showing a total before the customer commits; the server uses its own.
@@ -89,12 +89,12 @@ export function CheckoutForm({ user }: CheckoutFormProps) {
         return;
       }
 
-      // Empty the basket before navigating. In Paystack mode the order is
-      // already saved, so losing the cart on a back-navigation is correct.
+      // Empty the basket before navigating. The order is already saved, so
+      // losing the cart on a back-navigation is correct.
       clear();
 
-      // A full page load, not a router push: we are leaving for an external
-      // payment provider.
+      // A full page load, not a router push: this leaves the checkout flow and
+      // lands on the payment step.
       window.location.href = payload.redirectTo;
     } catch {
       setError("Could not reach the server. Check your connection and try again.");

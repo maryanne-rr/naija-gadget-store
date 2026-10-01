@@ -5,12 +5,15 @@ A complete shop, built for a bootcamp brief:
 | Requirement | How it is done |
 |---|---|
 | Website for a shop | Next.js 16 (App Router) + TypeScript + Tailwind |
-| Checkout page | Cart, address form, and a payment step |
+| Checkout page | Cart, address form, and a test payment page |
 | Database | Supabase Postgres - products, orders, order items, users |
 | Confirmation emails | Mailgun, via Nodemailer over SMTP |
 | Google auth | Auth.js with the Google provider, sessions in Supabase |
 
-Payments go through **Paystack in test mode**. No real money moves.
+Payment is a **dummy gateway**: a page of our own that looks like a bank's
+checkout and marks the order paid. No card details, no keys, no real money.
+Swapping in Paystack or Flutterwave later touches one file - see
+[Payments](#payments).
 
 ---
 
@@ -22,17 +25,18 @@ Payments go through **Paystack in test mode**. No real money moves.
 4. [Project layout](#4-project-layout)
 5. [Commands](#5-commands)
 6. [Things worth knowing](#6-things-worth-knowing)
-7. [Troubleshooting](#7-troubleshooting)
-8. [Deploying](#8-deploying)
+7. [Payments](#7-payments)
+8. [Troubleshooting](#8-troubleshooting)
+9. [Deploying](#9-deploying)
 
 ---
 
 ## 1. Run it right now (no accounts needed)
 
 The app boots without any API keys. Products come from `src/lib/catalog.ts`,
-and the checkout settles orders through a simulated gateway. This is on purpose:
-you can see the whole site working before you spend 40 minutes on four signup
-forms.
+and orders are saved only if Supabase is connected - but you can still click all
+the way through the payment page. This is on purpose: you can see the whole site
+working before you spend 40 minutes on three signup forms.
 
 ```bash
 cd shop
@@ -42,7 +46,7 @@ npm run dev
 
 Open <http://localhost:3000>.
 
-The footer shows which integrations are live. Right now all four will be greyed
+The footer shows which integrations are live. Right now all three will be greyed
 out - they tick green as you paste each key in.
 
 ---
@@ -57,6 +61,8 @@ cp .env.example .env.local     # Windows PowerShell:  Copy-Item .env.example .en
 
 Then fill in the blanks below. **Restart `npm run dev` after every edit** -
 Next.js only reads env vars at startup.
+
+You only need **three**. Payment needs nothing.
 
 ### 1. Supabase (the database)
 
@@ -128,26 +134,6 @@ MAIL_FROM="Naija Gadget Store <no-reply@sandbox.mailgun.org>"
 > slash or not; the port included. A mismatch here is the single most common
 > reason Google sign-in returns `redirect_uri_mismatch`.
 
-### 4. Paystack (payments, test mode)
-
-1. Go to <https://dashboard.paystack.com> and register.
-2. Once in, open **Settings -> API Keys & Settings**.
-3. Click **Reveal** next to the **Secret key** in the TEST section. Copy the
-   `sk_test_...` value -> `PAYSTACK_SECRET_KEY`.
-
-Test card to use when paying:
-
-| Field | Value |
-|---|---|
-| Card number | `4084 0840 8408 4081` |
-| Expiry | any future date |
-| CVV | any 3 digits |
-| PIN | `0000` |
-| OTP | `000000` |
-
-A real Paystack account is not needed if you leave this key out - checkout just
-runs in simulated mode instead.
-
 ---
 
 ## 3. How a checkout actually flows
@@ -164,16 +150,14 @@ Worth understanding, because it is where most of the real work is.
         |  - validates the input (Zod)
         |  - RE-CALCULATES every price from the database
         |  - inserts an order with status = 'pending'
-        |  - asks Paystack to create a transaction
         v
- 3. Browser is redirected to Paystack's hosted page
+ 3. Browser is redirected to /checkout/pay
         |
-        |  the customer pays with a test card
+        |  the test payment page: shows the total and a Pay button
         v
- 4. Paystack redirects back to /api/checkout/verify?reference=NAI-XXXX
+ 4. POST /api/checkout/verify
         |
-        |  - asks Paystack what actually happened
-        |  - checks the amount matches the order total   <-- important
+        |  - confirms the payment with the gateway
         |  - flips the order to 'paid', stamps paid_at
         |  - decrements stock
         |  - sends the confirmation email via Mailgun
@@ -181,22 +165,19 @@ Worth understanding, because it is where most of the real work is.
  5. Browser lands on /checkout/success?reference=NAI-XXXX
 ```
 
+**Why the order is saved as 'pending' first.** Creating an order and taking
+money for it are different events. Keeping them apart means an order abandoned
+at the payment page sits as 'pending' and can be cleaned up later, instead of
+looking like a sale that never got paid.
+
 **Why the server recalculates prices.** The browser sends only product ids and
 quantities. It never sends an amount. If the server believed an amount from the
 client, anyone could edit a request in devtools and pay ₦1 for a ₦50,000 order.
 `src/lib/orders.ts` says so at the top.
 
-**Why step 4 re-checks with Paystack.** Because the redirect URL is just a link -
-anyone can type `/api/checkout/verify?reference=whatever` by hand. The only
-trustworthy source is Paystack's own API.
-
-**Why the amount is compared.** A customer could start an expensive order, pay
-one nara, then hit the verify URL by hand. Comparing what Paystack actually
-received against our order total is what stops that.
-
-Without `PAYSTACK_SECRET_KEY`, steps 3 and 4 collapse into the simulated branch,
-which settles the order immediately. Everything else - the database write, the
-stock decrement, the email - is identical.
+**Why step 4 confirms with the gateway.** Because the payment page is just a URL
+- anyone can call `/api/checkout/verify` by hand. With a real gateway the only
+trustworthy source is that gateway's own API. See [Payments](#7-payments).
 
 ---
 
@@ -217,7 +198,7 @@ shop/
    │  ├─ catalog.ts          demo products (fallback + seed source)
    │  ├─ products.ts         product queries
    │  ├─ orders.ts           create / settle / list orders
-   │  ├─ paystack.ts         payment gateway - the only Paystack-aware file
+   │  ├─ payment.ts          the gateway - the only payment-aware file
    │  ├─ mail.ts             Mailgun + the HTML receipt
    │  ├─ money.ts            Kobo <-> Naira
    │  └─ auth.ts             Auth.js / Google
@@ -235,12 +216,13 @@ shop/
       ├─ products/[slug]/page.tsx  one product
       ├─ cart/page.tsx
       ├─ checkout/page.tsx         + CheckoutForm.tsx
+      ├─ checkout/pay/             the test payment page + PayButton.tsx
       ├─ checkout/success/page.tsx receipt
       ├─ orders/page.tsx           history, scoped to the signed-in user
       ├─ actions.ts                server action for sign-out
       └─ api/
-         ├─ checkout/route.ts       create order, start payment
-         ├─ checkout/verify/route.ts  confirm payment
+         ├─ checkout/route.ts          create order as 'pending'
+         ├─ checkout/verify/route.ts   confirm payment, settle, email
          └─ auth/[...nextauth]/route.ts  Auth.js
 ```
 
@@ -264,7 +246,7 @@ Pages
   PASS  GET / renders  (status 200)
   PASS  GET / lists products  (found the catalogue)
   ...
-All good: 16 passed, 0 failed
+All good: 19 passed, 0 failed
 ```
 
 ---
@@ -295,9 +277,74 @@ awaited. Pages that must vary per request call `await connection()` to opt out
 of prerendering (`/` and `/orders` both do, because stock changes and orders
 are per-user). `middleware.ts` is now `proxy.ts`.
 
+**The payment page refuses to charge twice.** `/checkout/pay` shows an "Already
+paid" receipt if the order is settled, so a refresh cannot double-charge.
+
 ---
 
-## 7. Troubleshooting
+## 7. Payments
+
+There is no payment provider. `/checkout/pay` is our own page and its Pay button
+posts to `/api/checkout/verify`, which marks the order paid.
+
+All gateway knowledge lives in **`src/lib/payment.ts`**, which exposes just two
+functions:
+
+```ts
+startPayment(input)   // -> { redirectTo, reference, provider }
+verifyPayment(ref)    // -> { paid, amount?, provider, reference }
+```
+
+To add a real gateway, rewrite those two. Nothing else changes.
+
+**Paystack**
+
+```ts
+// start
+POST https://api.paystack.co/transaction/initialize
+Authorization: Bearer <SECRET_KEY>
+{ email, amount, currency: "NGN", reference, callback_url: "<your site>/api/checkout/verify?reference=..." }
+-> { data: { authorization_url } }     redirect the customer there
+
+// verify
+GET https://api.paystack.co/transaction/verify/<reference>
+Authorization: Bearer <SECRET_KEY>
+-> { data: { status: "success", amount } }
+```
+
+Test card: `4084 0840 8408 4081`, any future expiry, any CVV, PIN `0000`,
+OTP `000000`. Use the `sk_test_` secret key.
+
+**Flutterwave**
+
+```ts
+POST https://api.flutterwave.com/v3/payments
+Authorization: Bearer FLWSECK_TEST-<key>
+{ tx_ref, amount, currency: "NGN", redirect_url, customer: { email_address, name } }
+-> { data: { link } }
+
+GET https://api.flutterwave.com/v3/transactions/<tx_ref>
+-> { data: { status: "successful", amount } }
+```
+
+> **The trap:** Paystack quotes amounts in **Kobo**, Flutterwave quotes them in
+> **Naira**. Send the wrong one and ₦2,500.00 becomes ₦250 or ₦250,000 - and
+> ₦2,500.00 looks perfectly plausible as `2500`, so it will not look obviously
+> broken.
+
+**The two things a real `verifyPayment` must do that the dummy one skips:**
+
+1. **Ask the gateway, do not trust the redirect.** Anyone can POST to
+   `/api/checkout/verify` with any reference.
+2. **Compare the amount.** Without this, someone starts a ₦50,000 order, pays
+   ₦1, and then calls the verify endpoint to collect the goods.
+
+Both are marked with comments in `src/lib/payment.ts` and in
+`src/app/api/checkout/verify/route.ts`.
+
+---
+
+## 8. Troubleshooting
 
 **`node` is not recognised as a command**
 Node is installed through *fnm* but is not on your PATH. Open PowerShell and
@@ -322,13 +369,12 @@ The URI in Google Cloud Console must be
 **Google sign-in returns `access_denied`**
 Add your Google account under **OAuth consent screen > Test users**.
 
-**Paystack says the amount is wrong**
-It expects Kobo as an integer. `PAYSTACK_SECRET_KEY` from the TEST section is
-required; the live key is refused by test transactions.
-
 **Mailgun says the recipient is not allowed**
 That is the sandbox domain restricting you to your own email. Add a verified
 domain, or just send to the address you signed up with.
+
+**The payment page says "Order not found"**
+The `reference` in the URL does not match an order. Start again from the cart.
 
 **The footer shows an integration as not configured**
 Env vars are read at startup. Stop and restart `npm run dev` after editing
@@ -336,7 +382,7 @@ Env vars are read at startup. Stop and restart `npm run dev` after editing
 
 ---
 
-## 8. Deploying
+## 9. Deploying
 
 Any host that runs Next.js works. The only environment-specific change is the
 Google redirect URI, which must use your real domain:
@@ -346,7 +392,7 @@ https://your-domain.com/api/auth/callback/google
 ```
 
 and the matching JS origin `https://your-domain.com`. Also set `AUTH_URL` to
-your deployed origin so Paystack sends people to the right place.
+your deployed origin, so links built at runtime point at the right place.
 
 Remember: `.env.local` is ignored by git, so deploys need the keys pasted into
 your host's environment variable settings rather than a file.
@@ -355,4 +401,5 @@ your host's environment variable settings rather than a file.
 
 ## Licence
 
-Bootcamp project. Test mode only.
+Bootcamp project. The payment page is a test gateway - no card details are
+collected and no money moves.

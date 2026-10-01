@@ -12,9 +12,6 @@ function read(name: string): string | undefined {
   return value && value.trim().length > 0 ? value.trim() : undefined;
 }
 
-/** How the checkout behaves. See README "Payment modes". */
-export type PaymentMode = "paystack" | "simulated";
-
 export const env = {
   supabaseUrl: read("NEXT_PUBLIC_SUPABASE_URL"),
   supabaseServiceRoleKey: read("SUPABASE_SERVICE_ROLE_KEY"),
@@ -27,23 +24,14 @@ export const env = {
   googleClientSecret: read("AUTH_GOOGLE_SECRET"),
   authSecret: read("AUTH_SECRET"),
 
-  paystackSecretKey: read("PAYSTACK_SECRET_KEY"),
-
   appUrl: read("AUTH_URL") ?? "http://localhost:3000",
 } as const;
-
-/**
- * Paystack needs a key; without one we fall back to the simulated gateway so
- * the checkout page is still demoable.
- */
-export const paymentMode: PaymentMode = env.paystackSecretKey ? "paystack" : "simulated";
 
 /** Which integrations are switched on. Drives the status badges in the footer. */
 export const integrations = {
   database: Boolean(env.supabaseUrl && env.supabaseServiceRoleKey),
   mailgun: Boolean(env.mailgunApiKey && env.mailgunDomain),
   googleAuth: Boolean(env.googleClientId && env.googleClientSecret && env.authSecret),
-  paystack: paymentMode === "paystack",
 } as const;
 
 export type IntegrationName = keyof typeof integrations;
@@ -80,13 +68,6 @@ export function integrationStatuses(): IntegrationStatus[] {
       ready: integrations.googleAuth,
       vars: ["AUTH_GOOGLE_ID", "AUTH_GOOGLE_SECRET", "AUTH_SECRET"],
       docs: "README > 3. Google Cloud",
-    },
-    {
-      name: "paystack",
-      label: "Paystack test payments",
-      ready: integrations.paystack,
-      vars: ["PAYSTACK_SECRET_KEY"],
-      docs: "README > 4. Paystack",
     },
   ];
 }

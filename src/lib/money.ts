@@ -9,7 +9,7 @@
 
 export const CURRENCY = "NGN";
 
-/** Minor units per major unit. */
+/** 1 Naira = 100 Kobo. Every amount in this app is an integer count of them. */
 export const KOBO = 100;
 
 export function formatNaira(kobo: number, options: { withSymbol?: boolean } = {}): string {
@@ -24,11 +24,6 @@ export function formatNaira(kobo: number, options: { withSymbol?: boolean } = {}
   return withSymbol ? `\u20a6${formatted}` : formatted;
 }
 
-/** Paystack expects an integer amount in Kobo, e.g. 250000 for \u20a62,500.00 */
 export function toKobo(naira: number): number {
   return Math.round(naira * KOBO);
-}
-
-export function formatOrderReference(reference: string): string {
-  return reference.toUpperCase();
 }
