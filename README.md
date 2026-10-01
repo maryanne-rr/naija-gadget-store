@@ -236,7 +236,10 @@ npm run build      # production build
 npm start          # serve the production build
 npm run typecheck  # tsc --noEmit
 npm run lint       # eslint
-npm run smoke      # 16 checks against a running server (needs `npm run dev`)
+npm run setup      # print where each key comes from, open .env.local
+npm run seed       # load the 10 demo products into Supabase
+npm run smoke      # 19 checks against a running server
+npm run e2e        # place a real order, verify it, clean up
 ```
 
 `npm run smoke` is the quickest way to check nothing is broken after a change:
@@ -248,6 +251,41 @@ Pages
   ...
 All good: 19 passed, 0 failed
 ```
+
+`npm run e2e` is the one that proves the moving parts work together. It places a
+real order, asserts the order starts **unpaid**, settles it, checks stock went
+down, checks that a second call to the verify endpoint does **not** decrement
+again, then deletes the test order and restores the stock:
+
+```
+1. POST /api/checkout
+  PASS  order created  (status 200)
+  PASS    ...saved as 'pending', not 'paid'  (status: pending)
+  PASS    ...total is 2 x price  (5700000 kobo)
+2. POST /api/checkout/verify
+  PASS    order is now 'paid'  (status: paid)
+3. Stock
+  PASS  decremented by the quantity bought  (24 -> 22)
+4. Repeat the verify call
+  PASS  second call does NOT decrement stock again  (still 22)
+5. Cleanup
+  PASS  stock restored to its seeded value  (24)
+
+Order flow verified: 13 passed, 0 failed
+```
+
+To also exercise the confirmation email, give it a Mailgun-authorized address:
+
+```bash
+E2E_EMAIL=you@yourdomain.com npm run e2e
+```
+
+### Why there is a `seed` script *and* a `seed.sql`
+
+They write identical data. The script reads from `src/lib/catalog.ts` - the same
+file the app falls back to when the database is empty - so the database and the
+demo catalogue cannot drift apart, it needs no SQL editor, and it runs the same
+on any machine. `seed.sql` is there for when you would rather see the SQL.
 
 ---
 
@@ -361,6 +399,10 @@ Related trap: in **Windows PowerShell 5.1**, `Set-Content -Encoding UTF8` and
 unparseable. If a config file suddenly "is not valid JSON", check for a BOM.
 `node -e "console.log(require('fs').readFileSync('package.json')[0])"` should
 print `123` (`{`), not `239`.
+
+**Mailgun key has no `key-` prefix.** Paste it exactly as Mailgun shows it. Verified: `api:key-<value>` is rejected with 401, `api:<value>` is accepted.
+
+**Mailgun returns 403 "not allowed to send".** Free Mailgun accounts can only send to *authorized recipients* - addresses registered on the account. Add yours in the dashboard, or use the address you signed up with. The order still succeeds; only the email is skipped.
 
 **Google sign-in returns `redirect_uri_mismatch`**
 The URI in Google Cloud Console must be

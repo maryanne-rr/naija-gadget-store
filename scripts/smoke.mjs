@@ -11,6 +11,51 @@
 
 const BASE = process.env.SMOKE_BASE_URL ?? "http://localhost:3000";
 
+// ---------------------------------------------------------------------------
+// Find a product id to test checkout against.
+//
+// Do NOT hardcode one. The in-memory demo catalogue uses predictable UUIDs
+// (00000000-0000-4000-8000-000000000006), but once Supabase is connected the
+// products in the table have real random ids, and a hardcoded fixture id fails
+// with a confusing "item no longer exists".
+//
+// So: ask the database for a real id when there is one, and fall back to the
+// demo id only when Supabase is not configured.
+
+async function findProductId() {
+  const DEMO_ID = "00000000-0000-4000-8000-000000000006";
+
+  let env = {};
+  try {
+    const { readFileSync } = await import("node:fs");
+    for (const line of readFileSync(".env.local", "utf8").split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const eq = trimmed.indexOf("=");
+      if (eq === -1) continue;
+      env[trimmed.slice(0, eq).trim()] = trimmed.slice(eq + 1).trim().replace(/^["']|["']$/g, "");
+    }
+  } catch {
+    return DEMO_ID;
+  }
+
+  const url = env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) return DEMO_ID;
+
+  try {
+    const response = await fetch(`${url}/rest/v1/products?select=id&limit=1`, {
+      headers: { apikey: key, Authorization: `Bearer ${key}` },
+    });
+    if (!response.ok) return DEMO_ID;
+
+    const rows = await response.json();
+    return rows[0]?.id ?? DEMO_ID;
+  } catch {
+    return DEMO_ID;
+  }
+}
+
 let passed = 0;
 let failed = 0;
 
@@ -116,13 +161,14 @@ const badUuid = await postJson("/api/checkout", {
 });
 check("rejects a non-uuid product id", badUuid.status === 400, `status ${badUuid.status}`);
 
+const realId = await findProductId();
 const good = await postJson("/api/checkout", {
   email: "you@example.com",
   shippingName: "Ada Lovelace",
   shippingAddress: "12B Admiralty Way, Lekki",
   shippingCity: "Lagos",
   shippingState: "Lagos",
-  lines: [{ productId: "00000000-0000-4000-8000-000000000006", quantity: 1 }],
+  lines: [{ productId: realId, quantity: 1 }],
 });
 if (good.status === 200) {
   check("accepts a valid order", true, `mode: ${good.json?.mode}`);

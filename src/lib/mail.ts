@@ -1,43 +1,21 @@
 import "server-only";
-import nodemailer, { type Transporter } from "nodemailer";
 import { env, integrations } from "./env";
 import { formatNaira } from "./money";
 
 /**
  * Order confirmation email via Mailgun.
  *
- * Mailgun talks SMTP on smtp.mailgun.org:587. The username is always
- * postmaster@<your domain> and the password is the API key - not a password you
- * set yourself.
+ * WHY THE HTTP API AND NOT SMTP
+ * Mailgun still offers SMTP, but authenticating it with an HTTP API key is
+ * fussy and fails with a bare "535 Authentication failed" that gives you
+ * nothing to act on. Their HTTPS API is the documented primary path, needs no
+ * extra dependency, and returns a real error message.
  *
- * If the keys are missing, `sendOrderConfirmation` logs a preview instead of
- * throwing. A failed email must never take down a successful order.
+ * If Mailgun keys are missing, sendOrderConfirmation logs and returns instead of
+ * throwing: a failed email must never take down a successful order.
  */
 
-let transporter: Transporter | null = null;
-
-function getTransporter(): Transporter {
-  if (!env.mailgunApiKey || !env.mailgunDomain) {
-    throw new Error("Mailgun is not configured (MAILGUN_API_KEY / MAILGUN_DOMAIN missing).");
-  }
-
-  if (!transporter) {
-    transporter = nodemailer.createTransport({
-      host: "smtp.mailgun.org",
-      port: 587,
-      // 587 is STARTTLS, not implicit TLS, so `secure` is false and TLS is
-      // negotiated by nodemailer after the connection opens.
-      secure: false,
-      requireTLS: true,
-      auth: {
-        user: `postmaster@${env.mailgunDomain}`,
-        pass: env.mailgunApiKey,
-      },
-    });
-  }
-
-  return transporter;
-}
+const API_ROOT = "https://api.mailgun.net/v3";
 
 export interface ConfirmationLine {
   name: string;
@@ -60,11 +38,11 @@ export interface OrderConfirmation {
 export interface SendResult {
   sent: boolean;
   messageId?: string;
-  /** Set when the email could not be sent; the preview is logged instead. */
+  /** Set when the email could not be sent. */
   error?: string;
 }
 
-/** Escape anything that came from a customer before putting it in HTML. */
+/** Escape anything customer-supplied before putting it in HTML. */
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
@@ -72,10 +50,6 @@ function escapeHtml(value: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
-}
-
-function renderSubject(order: OrderConfirmation): string {
-  return `Your Naija Gadget Store order ${order.reference} is confirmed`;
 }
 
 function renderHtml(order: OrderConfirmation): string {
@@ -94,9 +68,7 @@ function renderHtml(order: OrderConfirmation): string {
     )
     .join("");
 
-  // .replace with a function, so a literal "$&" in a product name cannot
-  // resurrect itself as a substitution pattern.
-  const body = `
+  return `
     <div style="font-family:system-ui,-apple-system,'Segoe UI',sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#111827;">
       <h1 style="font-size:22px;margin:0 0 4px;">Thanks, ${escapeHtml(order.customerName)}!</h1>
       <p style="color:#6b7280;margin:0 0 24px;">
@@ -131,8 +103,6 @@ function renderHtml(order: OrderConfirmation): string {
       </p>
     </div>
   `;
-
-  return body.replace(/\$&/g, "$$&&");
 }
 
 function renderText(order: OrderConfirmation): string {
@@ -160,36 +130,46 @@ function renderText(order: OrderConfirmation): string {
 }
 
 export async function sendOrderConfirmation(order: OrderConfirmation): Promise<SendResult> {
-  const subject = renderSubject(order);
-  const html = renderHtml(order);
-  const text = renderText(order);
+  const subject = `Your Naija Gadget Store order ${order.reference} is confirmed`;
 
   if (!integrations.mailgun) {
     console.warn(
-      `[mail] Mailgun not configured, skipping email to ${order.to}.\n` +
-        `       Subject: ${subject}`,
+      `[mail] Mailgun not configured, skipping email to ${order.to}. Subject: ${subject}`,
     );
     return {
       sent: false,
-      error:
-        "Mailgun is not configured. Set MAILGUN_API_KEY and MAILGUN_DOMAIN in .env.local to send real emails.",
+      error: "Mailgun is not configured. Set MAILGUN_API_KEY and MAILGUN_DOMAIN in .env.local.",
     };
   }
 
   try {
-    const info = await getTransporter().sendMail({
-      from: env.mailFrom,
-      to: order.to,
-      subject,
-      html,
-      text,
+    const response = await fetch(`${API_ROOT}/${env.mailgunDomain}/messages`, {
+      method: "POST",
+      headers: {
+        // Mailgun HTTP API: HTTP Basic, username "api", password is the key.
+        Authorization: `Basic ${Buffer.from(`api:${env.mailgunApiKey}`).toString("base64")}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        from: env.mailFrom,
+        to: order.to,
+        subject,
+        html: renderHtml(order),
+        text: renderText(order),
+      }),
     });
 
-    console.log(`[mail] Order confirmation ${order.reference} sent to ${order.to}`);
-    return { sent: true, messageId: info.messageId };
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`Mailgun HTTP ${response.status}: ${body.slice(0, 300)}`);
+    }
+
+    const result = (await response.json()) as { id?: string; message?: string };
+    console.log(`[mail] Confirmation for ${order.reference} accepted by Mailgun -> ${order.to}`);
+    return { sent: true, messageId: result.id };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error(`[mail] Failed to send confirmation for ${order.reference}:`, message);
+    console.error(`[mail] Failed to send confirmation for ${order.reference}: ${message}`);
     return { sent: false, error: message };
   }
 }
