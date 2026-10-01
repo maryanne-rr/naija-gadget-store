@@ -9,6 +9,7 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "smoke": "node scripts/smoke.mjs",
+    "setup": "node scripts/setup.mjs",
     "check": "npm run typecheck && npm run build && npm run smoke"
   },
   "dependencies": {

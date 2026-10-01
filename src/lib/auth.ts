@@ -83,6 +83,23 @@ if (integrations.googleAuth) {
     Google({
       clientId: env.googleClientId!,
       clientSecret: env.googleClientSecret!,
+
+      // Requested scopes are spelled out rather than left to Google's defaults.
+      //
+      // This matters. Google treats these three as the "basic" set: anyone can
+      // sign in with any Google account, no test-user list, no 7-day expiry,
+      // and no "this app is not verified" warning screen. Add a single
+      // sensitive scope (Drive, Gmail, Calendar...) and all of that changes -
+      // sign-in starts showing a warning and is capped, and Google may require
+      // a verification process that takes weeks.
+      //
+      // So: keep this list short. The shop only needs to know who you are.
+      authorization: {
+        params: {
+          scope: "openid email profile",
+        },
+      },
+
       // Without this, signing in with an existing Google account that has never
       // used this app throws an OAuthAccountNotLinked error.
       allowDangerousEmailAccountLinking: true,
