@@ -30,6 +30,7 @@
   --color-ink-900: #0f172a;
 
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-display), var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 
   --radius-card: 1rem;
@@ -52,6 +53,38 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+}
+
+/* ---------------------------------------------------------------------------
+   Display type.
+
+   Applied to headings and prices only. Tailwind's `font-display` utility maps
+   to --font-display, which globals.css points at the Bricolage variable set
+   in layout.tsx.
+
+   The negative tracking matters: Bricolage is drawn tight by default, and
+   -0.02em is what stops large headings looking cramped next to the loose
+   default. Prices get it too - tabular figures keep a column of naira amounts
+   aligned.
+   ------------------------------------------------------------------------- */
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+
+/* Money, quantities and anything that should line up in a column. */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
 }
 
 /* Respect the OS "reduce motion" setting. Animations are decoration here, so

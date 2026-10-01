@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AddToCartButton } from "@/components/AddToCartButton";
@@ -47,10 +48,33 @@ export default async function ProductPage({ params }: PageProps<"/products/[slug
       </nav>
 
       <div className="grid gap-8 md:grid-cols-2">
-        <div className="flex aspect-square items-center justify-center rounded-2xl bg-gradient-to-br from-brand-50 to-brand-200 text-8xl">
-          <span role="img" aria-label={product.name}>
-            {product.emoji}
-          </span>
+        <div className="relative aspect-square overflow-hidden rounded-2xl bg-ink-100 dark:bg-ink-700">
+          {product.image_url ? (
+            <Image
+              src={product.image_url}
+              alt={product.name}
+              fill
+              priority
+              sizes="(max-width: 768px) 100vw, 50vw"
+              className="object-cover"
+            />
+          ) : (
+            <span
+              className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-brand-50 to-brand-200 text-8xl"
+              role="img"
+              aria-label={product.name}
+            >
+              {product.emoji}
+            </span>
+          )}
+
+          {soldOut && (
+            <span className="absolute inset-0 flex items-center justify-center bg-ink-900/55">
+              <span className="bg-white px-5 py-2 text-sm font-bold uppercase tracking-widest text-ink-900">
+                Sold out
+              </span>
+            </span>
+          )}
         </div>
 
         <div className="space-y-6">
