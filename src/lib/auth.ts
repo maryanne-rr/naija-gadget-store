@@ -1,8 +1,9 @@
 import "server-only";
 import NextAuth, { type NextAuthConfig } from "next-auth";
 import Google from "next-auth/providers/google";
-import { SupabaseAdapter } from "@auth/supabase-adapter";
 import { env, integrations } from "./env";
+import { supabase } from "./supabase";
+import { SupabaseAdapter } from "./supabaseAdapter";
 
 /**
  * Google sign-in, via Auth.js (the library formerly called NextAuth).
@@ -107,13 +108,10 @@ if (integrations.googleAuth) {
   ];
 
   if (useDatabase) {
-    // @auth/supabase-adapter takes { url, secret } - `secret` is the
-    // service-role key. It writes to the users / accounts / sessions tables
-    // created by supabase/schema.sql.
-    config.adapter = SupabaseAdapter({
-      url: env.supabaseUrl!,
-      secret: env.supabaseServiceRoleKey!,
-    });
+    // See src/lib/supabaseAdapter.ts for why this is not the official
+    // @auth/supabase-adapter. Sessions and accounts live in the public schema
+    // alongside the shop tables, with snake_case columns.
+    config.adapter = SupabaseAdapter(supabase());
   }
 }
 
