@@ -127,6 +127,3 @@ set name        = excluded.name,
     emoji       = excluded.emoji,
     stock       = excluded.stock,
     featured    = excluded.featured;
-
--- Tell Postgres to reuse free space instead of growing the file forever.
-vacuum analyze products;

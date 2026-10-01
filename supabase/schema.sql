@@ -143,6 +143,29 @@ alter table products           enable row level security;
 alter table orders             enable row level security;
 alter table order_items        enable row level security;
 
+-- ============================================================================
+--  Grants
+--
+--  Tables created through the SQL Editor are NOT automatically granted to the
+--  service_role. Without these, the API replies to every request with
+--      42501  permission denied for table products
+--  even though the table plainly exists - which reads like "my tables are
+--  broken" when they are actually fine.
+--
+--  service_role is what the app connects with (it bypasses RLS), so it needs
+--  table and function privileges.
+-- ============================================================================
+
+grant usage on schema public to service_role;
+
+grant all on all tables  in schema public to service_role;
+grant all on all routines in schema public to service_role;
+
+-- ...and keep granting them to anything created later, so a future migration
+-- does not silently break the app the same way.
+alter default privileges in schema public grant all on tables  to service_role;
+alter default privileges in schema public grant all on routines to service_role;
+
 -- Keep orders.paid_at honest: flipping to 'paid' always stamps a time.
 create or replace function public.mark_order_paid()
 returns trigger
