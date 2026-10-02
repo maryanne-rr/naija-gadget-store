@@ -40,6 +40,15 @@ export interface SendResult {
   messageId?: string;
   /** Set when the email could not be sent. */
   error?: string;
+  /**
+   * A human-readable explanation, when there is one worth showing a human.
+   *
+   * `error` is a short machine-readable token - "sandbox-domain-restriction" -
+   * so a caller can branch on it, and this carries the sentence that says what
+   * to actually do about it. Kept separate so nothing accidentally surfaces a
+   * raw provider response to a customer.
+   */
+  detail?: string;
 }
 
 /** Escape anything customer-supplied before putting it in HTML. */
@@ -169,6 +178,35 @@ export async function sendOrderConfirmation(order: OrderConfirmation): Promise<S
     return { sent: true, messageId: result.id };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+
+    // Mailgun's free tier hands you a *sandbox* domain, and a sandbox domain may
+    // only send to the account owner's own verified address plus whatever has
+    // been added as an authorised recipient. Anything else is refused with a 403
+    // and a message that reads like a support article.
+    //
+    // That refusal looks exactly like a bug in the shop - "why did my colleague
+    // not get the email?" - so it is worth naming here rather than leaving it as
+    // "Mailgun HTTP 403" in the log. Verified against the live domain:
+    //
+    //   to the owner address              -> 200 {"message":"Queued. Thank you."}
+    //   to any other address               -> 403 "Domain sandbox... is not allowed
+    //                                          to send: Free accounts are for test
+    //                                          purposes only."
+    //
+    // Fix is in the Mailgun dashboard, not here: Sending -> Domains -> the sandbox
+    // domain -> Authorised recipients, and add the address. Or attach a real
+    // domain, which lifts the restriction entirely.
+    if (/\bis not allowed to send\b|\btest purposes only\b/.test(message)) {
+      const hint =
+        `[mail] Mailgun refused ${order.to} for order ${order.reference}: this is a ` +
+        `SANDBOX domain, which may only send to the account owner's address and to ` +
+        `addresses added under Sending -> Domains -> ${env.mailgunDomain} -> ` +
+        `Authorised recipients. Add the recipient there, or attach a real domain.`;
+
+      console.error(hint);
+      return { sent: false, error: "sandbox-domain-restriction", detail: hint };
+    }
+
     console.error(`[mail] Failed to send confirmation for ${order.reference}: ${message}`);
     return { sent: false, error: message };
   }

@@ -117,11 +117,22 @@ export function DealCarousel({ slides }: { slides: Slide[] }) {
             {slide.brand} &middot; {slide.categoryName}
           </p>
 
-          {/* The specification first, same rule as the product card: this is the
-              number the decision turns on. */}
-          <p className="spec-figure mt-1 text-4xl sm:text-5xl">{slide.spec}</p>
+          {/* The name takes the headline position, matching the product card.
+              The specification drops to supporting size underneath, where it
+              answers the question for anyone comparing rather than leading.
 
-          <h2 className="mt-2 text-xl font-bold tracking-tight sm:text-2xl">{slide.name}</h2>
+              Audio has no headline figure at all - battery hours are not what
+              decides a pair of headphones - so the line is skipped rather than
+              left with a gap. */}
+          <h2 className="mt-1 font-display text-3xl font-bold leading-tight tracking-tight sm:text-4xl">
+            {slide.name}
+          </h2>
+
+          {slide.spec.trim().length > 0 && (
+            <p className="mt-1 text-base font-medium text-ink-600 dark:text-ink-400">
+              {slide.spec}
+            </p>
+          )}
 
           <p className="mt-4 flex flex-wrap items-baseline gap-3">
             <span className="tabular-nums text-3xl font-bold">
