@@ -2,7 +2,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AddToCartButton } from "@/components/AddToCartButton";
-import { getProductBySlug } from "@/lib/products";
+import { ProductCard } from "@/components/ProductCard";
+import { getProductBySlug, listProductsByCategory } from "@/lib/products";
+import { getCategory } from "@/lib/catalog";
 import { formatNaira } from "@/lib/money";
 
 /**
@@ -37,12 +39,33 @@ export default async function ProductPage({ params }: PageProps<"/products/[slug
 
   const soldOut = product.stock <= 0;
 
+  // The category this product sits in, if it has one. Products seeded before
+  // categories existed have null, so this has to cope with that.
+  const category = product.category ? getCategory(product.category) : undefined;
+
+  // Up to four others from the same category, cheapest last. Not fetched when
+  // this is the only product in its category, which is the common case for the
+  // smaller ones.
+  const siblings = category ? await listProductsByCategory(category.slug) : [];
+  const related = siblings
+    .filter((item) => item.id !== product.id)
+    .sort((a, b) => a.price - b.price)
+    .slice(0, 4);
+
   return (
     <div className="space-y-8">
       <nav aria-label="Breadcrumb" className="text-sm text-ink-500">
         <Link href="/" className="hover:text-brand-700">
           Shop
         </Link>
+        {category && (
+          <>
+            <span aria-hidden="true"> / </span>
+            <Link href={`/category/${category.slug}`} className="hover:text-brand-700">
+              {category.name}
+            </Link>
+          </>
+        )}
         <span aria-hidden="true"> / </span>
         <span className="text-ink-700 dark:text-ink-200">{product.name}</span>
       </nav>
@@ -79,6 +102,15 @@ export default async function ProductPage({ params }: PageProps<"/products/[slug
 
         <div className="space-y-6">
           <div>
+            {category && (
+              <Link
+                href={`/category/${category.slug}`}
+                className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-ink-200 px-2.5 py-1 text-xs font-medium text-ink-600 hover:border-brand-400 hover:text-brand-700 dark:border-ink-700 dark:text-ink-300"
+              >
+                <span aria-hidden="true">{category.emoji}</span>
+                {category.name}
+              </Link>
+            )}
             <h1 className="text-3xl font-bold tracking-tight">{product.name}</h1>
             {product.tagline && <p className="mt-1 text-lg text-ink-500">{product.tagline}</p>}
           </div>
@@ -131,6 +163,21 @@ export default async function ProductPage({ params }: PageProps<"/products/[slug
           </div>
         </div>
       </div>
+
+      {/* More from the same shelf. Only shown when there is somewhere to go -
+          a "related products" strip with one item in it is worse than none. */}
+      {related.length > 0 && (
+        <section className="border-t border-ink-200 pt-8 dark:border-ink-700">
+          <h2 className="text-xl font-bold tracking-tight">
+            More {category ? `in ${category.name}` : "like this"}
+          </h2>
+          <div className="mt-4 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {related.map((item) => (
+              <ProductCard key={item.id} product={item} />
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

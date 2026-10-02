@@ -1,5 +1,5 @@
 import "server-only";
-import { demoProducts, type Product } from "./catalog";
+import { demoProducts, CATEGORIES, type Product } from "./catalog";
 import { integrations } from "./env";
 import { supabase } from "./supabase";
 
@@ -77,6 +77,56 @@ export async function getProductBySlug(slug: string): Promise<Product | null> {
     () => demoProducts.find((p) => p.slug === slug) ?? null,
     "getProductBySlug",
   );
+}
+
+/**
+ * Every product in one category, cheapest first.
+ *
+ * The slug is checked against CATEGORIES before querying, so a typo in a URL
+ * produces the same notFound() as an unknown product does. Passing an
+ * arbitrary string straight to .eq() would return an empty array instead, which
+ * renders a plausible-looking empty category page rather than a 404.
+ */
+export async function listProductsByCategory(categorySlug: string): Promise<Product[]> {
+  if (!CATEGORIES.some((c) => c.slug === categorySlug)) {
+    return [];
+  }
+
+  return queryOrFallback<Product[]>(
+    async () => {
+      const { data, error } = await supabase()
+        .from("products")
+        .select("*")
+        .eq("category", categorySlug)
+        .order("featured", { ascending: false })
+        .order("price", { ascending: true });
+
+      if (error) throw new Error(error.message);
+      return (data ?? []) as Product[];
+    },
+    () =>
+      demoProducts
+        .filter((p) => p.category === categorySlug)
+        .sort((a, b) => Number(b.featured) - Number(a.featured) || a.price - b.price),
+    `listProductsByCategory(${categorySlug})`,
+  );
+}
+
+/**
+ * How many products sit in each category, for the storefront nav.
+ *
+ * Counted from the catalogue rather than with a SQL group-by. The nav is on
+ * every page view and the products are already in memory, so a second round
+ * trip to the database to count thirty rows would be slower and no more
+ * accurate.
+ */
+export function categoryCounts(products: Product[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const product of products) {
+    if (!product.category) continue;
+    counts.set(product.category, (counts.get(product.category) ?? 0) + 1);
+  }
+  return counts;
 }
 
 /**

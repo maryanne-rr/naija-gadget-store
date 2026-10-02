@@ -70,6 +70,9 @@ create table if not exists products (
   emoji       text not null default '\u{1F4E6}',
   stock       integer not null default 0 check (stock >= 0),
   featured    boolean not null default false,
+  -- Slug into CATEGORIES in src/lib/catalog.ts, not a foreign key.
+  -- See supabase/002-categories.sql for why there is no categories table.
+  category    text,
   created_at  timestamptz not null default now()
 );
 
@@ -120,6 +123,7 @@ create table if not exists order_items (
 
 create index if not exists products_featured_idx    on products (featured) where featured;
 create index if not exists products_created_at_idx  on products (created_at desc);
+create index if not exists products_category_idx    on products (category);
 create index if not exists orders_user_id_idx       on orders (user_id, created_at desc);
 create index if not exists orders_reference_idx     on orders (reference);
 create index if not exists orders_status_idx        on orders (status) where status = 'pending';

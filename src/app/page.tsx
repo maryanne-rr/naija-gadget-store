@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { connection } from "next/server";
 import { ProductCard } from "@/components/ProductCard";
-import { listProducts, usingDemoCatalogue } from "@/lib/products";
+import { CategoryNav } from "@/components/CategoryNav";
+import { listProducts, categoryCounts, usingDemoCatalogue } from "@/lib/products";
+import { CATEGORIES } from "@/lib/catalog";
 import { integrations } from "@/lib/env";
 
 /**
@@ -18,8 +20,18 @@ export default async function HomePage() {
   await connection();
 
   const products = await listProducts();
+  const counts = categoryCounts(products);
+
   const featured = products.filter((product) => product.featured);
   const rest = products.filter((product) => !product.featured);
+
+  // Only categories that actually have products, so the nav has no dead tiles.
+  const categories = CATEGORIES.filter((c) => counts.get(c.slug)).map((c) => ({
+    slug: c.slug,
+    name: c.name,
+    emoji: c.emoji,
+    count: counts.get(c.slug) ?? 0,
+  }));
 
   return (
     <div className="space-y-12">
@@ -51,6 +63,18 @@ export default async function HomePage() {
           Browse the catalogue
         </Link>
       </section>
+
+      {/* ---- Categories ---- */}
+      {categories.length > 0 && (
+        <section aria-labelledby="categories-heading">
+          <h2 id="categories-heading" className="text-xl font-bold tracking-tight">
+            Shop by category
+          </h2>
+          <div className="mt-4">
+            <CategoryNav categories={categories} />
+          </div>
+        </section>
+      )}
 
       {featured.length > 0 && (
         <section>

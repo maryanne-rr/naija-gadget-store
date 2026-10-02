@@ -102,6 +102,7 @@ const rows = demoProducts.map((product) => ({
   emoji: product.emoji,
   stock: product.stock,
   featured: product.featured,
+  category: product.category,
 }));
 
 console.log(`\nSeeding ${rows.length} products into ${dim(SUPABASE_URL)}\n`);
@@ -142,19 +143,31 @@ const inserted = JSON.parse(text);
 // Verify by reading back - never trust a write by assuming it worked
 // ---------------------------------------------------------------------------
 
-const check = await fetch(`${SUPABASE_URL}/rest/v1/products?select=slug,name,price,stock&order=slug`, {
-  headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` },
-});
+const check = await fetch(
+  `${SUPABASE_URL}/rest/v1/products?select=slug,name,price,stock,category&order=category.nullslast,slug`,
+  { headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` } },
+);
 const after = await check.json();
 
 console.log(`${green("OK")}  ${inserted.length} product(s) written, ${after.length} now in the table\n`);
 
+// Grouped by category, so the output doubles as a check that every product
+// landed in the category it should have.
+let current = null;
 for (const product of after) {
+  const category = product.category ?? "(uncategorised)";
+  if (category !== current) {
+    current = category;
+    console.log(`\n  ${dim(category)}`);
+  }
+
   const naira = (product.price / 100).toLocaleString("en-NG", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
-  console.log(`  ${String(product.stock).padStart(3)} in stock   \u20a6${naira.padStart(11)}   ${product.name}`);
+  console.log(
+    `    ${String(product.stock).padStart(3)} in stock   \u20a6${naira.padStart(11)}   ${product.name}`,
+  );
 }
 
 console.log(dim("\nNow run `npm run dev` and open http://localhost:3000\n"));

@@ -43,6 +43,13 @@ yarn-error.log*
 # vercel
 .vercel
 
+# photo sourcing scratch space. scripts/source-photos.mjs downloads dozens of
+# candidates into here and scripts/promote-photos.mjs copies the reviewed few
+# into public/products. The candidates are working files, not assets - ~43MB of
+# mostly-rejected images that would bloat the repo permanently.
+.photo-staging/
+.photo-plan.json
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
