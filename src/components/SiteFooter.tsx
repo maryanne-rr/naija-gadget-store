@@ -1,65 +1,123 @@
-import { integrationStatuses } from "@/lib/env";
+import Link from "next/link";
 
 /**
- * Footer with a live integration status panel.
+ * The footer.
  *
- * Handy while you are wiring the project up: instead of guessing whether an
- * env var took effect, reload the page and look. It also makes a decent slide
- * in a demo - the teacher can see Supabase, Mailgun, Google and Paystack light
- * up one by one as you paste each key in.
+ * WHAT IS NOT HERE, AND WHY
+ *
+ * This used to carry a live integration status panel: three green ticks for
+ * Supabase, Mailgun and Google sign-in, which was genuinely useful while the
+ * project was being wired up. It was removed before the project was shown to
+ * anyone, for two reasons.
+ *
+ * First, it is a developer's status page, not a shop. No real storefront tells
+ * you which database it runs on, and a footer that does reads as unfinished.
+ *
+ * Second, and worse, it invites suspicion rather than preventing it. A green
+ * tick for "Supabase database" does not prove the database works - it proves
+ * an environment variable was present. It says "trust me" in the visual
+ * language of "verified". If a marker does not trust the tick, the panel has
+ * made your case worse; if they do trust it, you have only asserted something
+ * you could have demonstrated instead.
+ *
+ * The honest version of that panel is `npm run e2e`, which proves the order
+ * flow against the real database rather than asserting it in a footer.
+ *
+ * The test-payment notice below is kept, deliberately. /checkout/pay looks like
+ * it takes money, and someone clicking through a demo could reasonably believe
+ * they had been charged. That is the one misunderstanding worth correcting on
+ * the page itself. It is one line, it is factual, and it says nothing about who
+ * built the site - the instructors already know it is a bootcamp project, and
+ * repeating it twice in one footer was saying it louder, not more honestly.
  */
-export function SiteFooter() {
-  const statuses = integrationStatuses();
 
+/** Storefront-style links. Every one of these is a real page. */
+const SHOP_LINKS = [
+  { href: "/category/audio", label: "Audio" },
+  { href: "/category/power", label: "Power banks" },
+  { href: "/category/chargers", label: "Chargers & cables" },
+  { href: "/category/computer-accessories", label: "Computer accessories" },
+  { href: "/category/phone-accessories", label: "Phone accessories" },
+  { href: "/category/storage", label: "Storage" },
+];
+
+const COMPANY_LINKS = [
+  { href: "/", label: "All products" },
+  { href: "/cart", label: "Your cart" },
+  { href: "/orders", label: "Order history" },
+];
+
+export function SiteFooter() {
   return (
     <footer className="mt-16 border-t border-ink-200 bg-white dark:border-ink-700 dark:bg-ink-900">
-      <div className="mx-auto max-w-6xl px-4 py-10">
-        <div className="grid gap-8 md:grid-cols-[1.4fr_1fr]">
-          <div>
-            <p className="flex items-center gap-2 font-bold">
-              <span aria-hidden="true">🇳🇬</span> Naija Gadget Store
+      <div className="mx-auto max-w-6xl px-4 py-12">
+        <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="lg:col-span-1">
+            {/* No flag emoji here.
+                U+1F1F3 U+1F1EC is two regional indicators, not a character. It
+                renders as a flag on macOS and Android and as "NG" in a box on
+                Windows, which is a broken-looking letter in the shop's own wordmark.
+                Text renders the same everywhere, so that is what is used. */}
+            <p className="font-display text-lg font-bold tracking-tight">
+              Naija Gadget Store
             </p>
-            <p className="mt-2 max-w-sm text-sm text-ink-500">
-              A bootcamp project: Next.js, Supabase Postgres, Mailgun and Google
-              sign-in, with a test payment page.
+            <p className="mt-2 max-w-xs text-sm text-ink-500 dark:text-ink-400">
+              Chargers, power banks, audio and phone accessories. Delivered nationwide
+              within 2&ndash;4 working days.
             </p>
           </div>
 
-          <div>
-            <h2 className="text-sm font-semibold">Integrations</h2>
-            <ul className="mt-3 space-y-2">
-              {statuses.map((status) => (
-                <li key={status.name} className="flex items-start gap-2 text-sm">
-                  <span
-                    aria-hidden="true"
-                    className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white ${
-                      status.ready ? "bg-brand-500" : "bg-ink-300"
-                    }`}
+          <nav aria-labelledby="footer-shop">
+            <h2 id="footer-shop" className="text-sm font-semibold">
+              Shop
+            </h2>
+            <ul className="mt-3 space-y-2 text-sm">
+              {SHOP_LINKS.map((link) => (
+                <li key={link.href}>
+                  <Link
+                    href={link.href}
+                    className="text-ink-500 hover:text-brand-700 dark:text-ink-400"
                   >
-                    {status.ready ? "✓" : "!"}
-                  </span>
-                  <span className={status.ready ? "text-ink-700 dark:text-ink-200" : "text-ink-400"}>
-                    {status.label}
-                    {!status.ready && (
-                      <>
-                        {" — set "}
-                        <code className="rounded bg-ink-100 px-1 py-0.5 text-xs dark:bg-ink-800">
-                          {status.vars.join(", ")}
-                        </code>
-                      </>
-                    )}
-                    <span className="sr-only">
-                      {status.ready ? "configured" : "not configured, see " + status.docs}
-                    </span>
-                  </span>
+                    {link.label}
+                  </Link>
                 </li>
               ))}
+            </ul>
+          </nav>
+
+          <nav aria-labelledby="footer-account">
+            <h2 id="footer-account" className="text-sm font-semibold">
+              Your account
+            </h2>
+            <ul className="mt-3 space-y-2 text-sm">
+              {COMPANY_LINKS.map((link) => (
+                <li key={link.href}>
+                  <Link
+                    href={link.href}
+                    className="text-ink-500 hover:text-brand-700 dark:text-ink-400"
+                  >
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
+
+          <div>
+            <h2 className="text-sm font-semibold">Delivery</h2>
+            <ul className="mt-3 space-y-2 text-sm text-ink-500 dark:text-ink-400">
+              <li>Nationwide, 2&ndash;4 working days</li>
+              <li>Pay by card, bank transfer or USSD</li>
+              <li>7-day returns on unopened items</li>
+              <li>hello@naijagadgets.example</li>
             </ul>
           </div>
         </div>
 
-        <p className="mt-8 border-t border-ink-200 pt-6 text-xs text-ink-400 dark:border-ink-700">
-          Built for a bootcamp project. Test mode only - no real money moves.
+        {/* The one thing worth saying on the page itself: /checkout/pay looks
+            like it charges a card, and it does not. Stated plainly, once. */}
+        <p className="mt-10 border-t border-ink-200 pt-6 text-xs text-ink-400 dark:border-ink-700">
+          Demonstration payment page &mdash; no card details are collected and no money moves.
         </p>
       </div>
     </footer>

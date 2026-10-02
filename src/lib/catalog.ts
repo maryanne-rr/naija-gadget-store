@@ -154,13 +154,13 @@ const SEED: SeedProduct[] = [
     category: "audio",
   },
   {
-    slug: "samsung-galaxy-buds-fe",
-    name: "Samsung Galaxy Buds FE",
+    slug: "nothing-ear-2-earbuds",
+    name: "Nothing Ear (2) Earbuds",
     tagline: "Noise cancelling in a pocket",
     description:
-      "Active noise cancellation, 30 hours total with the case, and a build light enough to forget you are wearing them. The case is genuinely pocket-sized, which is the thing most rivals get wrong.",
+      "Active noise cancelling, 40 hours total with the case, and a build light enough to forget you are wearing them. The case is genuinely pocket-sized, which is the thing most rivals get wrong. Nothing's transparent design means you can see the electronics, and the microphones inside are good enough for calls in a Lagos traffic junction.",
     price: 4100000,
-    image_url: "/products/samsung-galaxy-buds-fe.jpg",
+    image_url: "/products/nothing-ear-2-earbuds.jpg",
     emoji: "\u{1F3E3}",
     stock: 12,
     featured: false,
@@ -208,13 +208,13 @@ const SEED: SeedProduct[] = [
     category: "power",
   },
   {
-    slug: "xiaomi-power-bank-3",
-    name: "Xiaomi Mi Power Bank 3",
+    slug: "oraimo-power-bank-20000",
+    name: "Oraimo 20,000mAh Power Bank",
     tagline: "18W two-way fast charge",
     description:
-      "A no-nonsense 20,000mAh bank with USB-C in and out, so one cable charges the bank and your phone. The plain black finish and matte buttons feel a step above the usual budget options.",
+      "A no-nonsense 20,000mAh bank with USB-C in and out, so one cable charges the bank and your phone. The round percentage readout on the front is the detail worth paying for: four vague dots tell you nothing when your phone is at 12%.",
     price: 2100000,
-    image_url: "/products/xiaomi-power-bank-3.jpg",
+    image_url: "/products/oraimo-power-bank-20000.jpg",
     emoji: "\u{26F1}",
     stock: 38,
     featured: false,
@@ -262,13 +262,13 @@ const SEED: SeedProduct[] = [
     category: "chargers",
   },
   {
-    slug: "mpow-6in1-cable",
-    name: "MPOW 6-in-1 USB-C Cable",
-    tagline: "Because the charger has one port",
+    slug: "braided-usbc-cable",
+    name: "Braided USB-C Charging Cable",
+    tagline: "The cable that outlasts the phone",
     description:
-      "A 1.2m braided cable that splits into USB-C, Lightning, Micro-USB, USB-A and two standard USB-A ports. Genuinely the cable to keep in a draw bag when half your devices need different connectors.",
+      "A 1.2m braided USB-C to USB-C cable with a bend rating tested well past what a phone's port survives, which is the number that actually matters. 60W charging, so it will run a laptop as happily as a phone. The braid stops the connector end fraying, which is where every cheap cable fails first.",
     price: 450000,
-    image_url: "/products/mpow-6in1-cable.jpg",
+    image_url: "/products/braided-usbc-cable.jpg",
     emoji: "\u{1F50E}",
     stock: 63,
     featured: false,
@@ -383,13 +383,13 @@ const SEED: SeedProduct[] = [
 
   // ---------------------------------------------------- phone accessories ---
   {
-    slug: "tecno-spark-20-combo",
-    name: "Spark 20 Case + Tempered Glass",
+    slug: "silicone-case-glass-combo",
+    name: "Silicone Case + Tempered Glass",
     tagline: "Two layers of not-scratching-your-phone",
     description:
-      "A soft-touch TPU case with raised edges around the camera, bundled with a 9H tempered glass screen protector. Cut precisely for the Spark 20, and the case stays on without the buttons feeling mushy.",
+      "A soft-touch silicone case with raised edges around the camera, bundled with a 9H tempered glass screen protector. The raised lip is the part that matters: without it the glass sits below the case and picks up every scrape the case takes. Fits most 6-inch Android phones.",
     price: 320000,
-    image_url: "/products/tecno-spark-20-combo.jpg",
+    image_url: "/products/silicone-case-glass-combo.jpg",
     emoji: "\u{1F6F0}",
     stock: 89,
     featured: false,

@@ -29,9 +29,12 @@ export function SiteHeader({ user, authReady }: { user: HeaderUser | null; authR
   return (
     <header className="sticky top-0 z-40 border-b border-ink-200 bg-white/85 backdrop-blur dark:border-ink-700 dark:bg-ink-900/85">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4">
-        <Link href="/" className="flex items-center gap-2 text-lg font-bold tracking-tight">
-          <span aria-hidden="true">🇳🇬</span>
-          <span>Naija Gadgets</span>
+        {/* No flag emoji. U+1F1F3 U+1F1EC is two regional indicators rather than
+            a character, so it draws a flag on macOS and Android and "NG" in a
+            box on Windows - a broken-looking letter in the shop's own wordmark.
+            A plain wordmark renders identically everywhere. */}
+        <Link href="/" className="font-display text-lg font-bold tracking-tight">
+          Naija Gadgets
         </Link>
 
         <nav className="flex items-center gap-1 sm:gap-2">
