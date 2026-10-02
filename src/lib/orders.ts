@@ -199,6 +199,84 @@ export async function getOrderByReference(reference: string): Promise<OrderRecor
   return (data as OrderRecord | null) ?? null;
 }
 
+/**
+ * Holds the reference of an order a guest has just proved they own.
+ *
+ * WHY IT LIVES HERE AND NOT IN app/actions.ts
+ * A "use server" module may only export async functions. Adding an exported
+ * const there takes every export in the file with it, and the failure is
+ * spectacular rather than local: the whole site returns 500 with
+ * "The export signOutAction was not found ... The module has no exports at all",
+ * because the header imports it for the sign-out button on every page.
+ *
+ * Both halves that need the name import it from here, so the two cannot drift.
+ */
+export const TRACKED_ORDER_COOKIE = "tracked_order";
+
+/**
+ * Find an order for a guest, by reference AND the email it was placed with.
+ *
+ * WHY BOTH ARE REQUIRED
+ * Checkout does not require an account, so most orders have no user_id and the
+ * "your orders" page - which is scoped by user_id from the session - is empty
+ * for them. That makes a "track your order" promise untrue for exactly the
+ * customers most likely to want it.
+ *
+ * Matching on the reference alone would be worse than useless. A reference is
+ * NAI- followed by seven characters, which is short enough to be guessed if the
+ * generator is weak, and anybody who lands on one order can then read another.
+ * Requiring the email as well means a caller needs two things they already have,
+ * both printed on the receipt and in the confirmation email.
+ *
+ * The email comparison is done by Postgres with .eq(), not by fetching on the
+ * reference and comparing in JavaScript. It makes no difference to the result
+ * here, but doing the filtering in the query means a mismatch never becomes a
+ * row in memory at all - there is nothing to leak if a later line logs the
+ * result.
+ */
+export async function findOrderForGuest(
+  reference: string,
+  email: string,
+): Promise<OrderRecord | null> {
+  requireDatabase();
+
+  const { data, error } = await supabase()
+    .from("orders")
+    .select("*")
+    .eq("reference", reference.trim().toUpperCase())
+    .eq("email", email.trim().toLowerCase())
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  return (data as OrderRecord | null) ?? null;
+}
+
+/**
+ * Fetch an order by reference alone.
+ *
+ * DANGEROUS ON ITS OWN, AND NOT USED THAT WAY
+ * A reference is NAI- plus seven characters. Anyone holding one could read the
+ * order behind it, which for a guest order means reading somebody's shipping
+ * address and phone number.
+ *
+ * It exists here only because trackOrder has already checked the reference
+ * against the email the order was placed with and left a single-use cookie to
+ * prove it. Every caller must arrive holding that proof; nothing else should
+ * import this. Guests go through findOrderForGuest, which does the check.
+ */
+export async function findOrderByReference(reference: string): Promise<OrderRecord | null> {
+  requireDatabase();
+
+  const { data, error } = await supabase()
+    .from("orders")
+    .select("*")
+    .eq("reference", reference)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  return (data as OrderRecord | null) ?? null;
+}
+
 export async function getOrderItems(orderId: string): Promise<OrderLineRecord[]> {
   const { data, error } = await supabase()
     .from("order_items")

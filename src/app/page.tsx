@@ -5,7 +5,7 @@ import { CategoryNav } from "@/components/CategoryNav";
 import { DealCarousel } from "@/components/DealCarousel";
 import { listProducts, categoryCounts, usingDemoCatalogue } from "@/lib/products";
 import { dealsForToday } from "@/lib/deals";
-import { CATEGORIES, getCategory } from "@/lib/catalog";
+import { CATEGORIES, getCategory, DELIVERY } from "@/lib/catalog";
 import { formatNaira } from "@/lib/money";
 import { integrations } from "@/lib/env";
 
@@ -43,8 +43,10 @@ const PROMISES = [
     body: "JBL, Anker, Oraimo, Logitech. Not lookalikes.",
   },
   {
-    heading: "Lagos 1–2 days",
-    body: "All 36 states and the FCT, 2–5 working days elsewhere.",
+    // Rendered from the shared constant so this cannot disagree with the
+    // announcement bar or the footer, which it did - 2-5 here, 2-4 there.
+    heading: DELIVERY.lagos,
+    body: DELIVERY.elsewhere,
   },
   {
     heading: "7-day returns",
@@ -74,6 +76,7 @@ export default async function HomePage() {
     brand: product.brand,
     spec: product.spec,
     categoryName: product.category ? (getCategory(product.category)?.name ?? "") : "",
+    categorySlug: product.category,
     imageUrl: product.image_url,
     emoji: product.emoji,
     price: product.price,
@@ -154,11 +157,7 @@ export default async function HomePage() {
           <h2 id="categories-heading" className="text-2xl font-bold tracking-tight">
             Shop by category
           </h2>
-          <p className="mt-1 text-sm text-ink-600 dark:text-ink-400">
-            Every category is sorted by the measure that decides it, so you are comparing
-            like with like.
-          </p>
-          <div className="mt-5">
+          <div className="mt-4">
             <CategoryNav categories={categories} />
           </div>
         </section>

@@ -239,10 +239,6 @@ export function CheckoutForm({ user }: CheckoutFormProps) {
         >
           {submitting ? "Starting payment…" : "Pay now"}
         </button>
-
-        <p className="mt-2 text-center text-xs text-ink-500">
-          The server confirms every price before charging you.
-        </p>
       </section>
     </form>
   );

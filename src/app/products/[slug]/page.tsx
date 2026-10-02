@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { AddToCartButton } from "@/components/AddToCartButton";
 import { ProductCard } from "@/components/ProductCard";
 import { getProductBySlug, listProductsByCategory } from "@/lib/products";
-import { getCategory } from "@/lib/catalog";
+import { getCategory, DELIVERY } from "@/lib/catalog";
 import { formatNaira, discountPercent, amountSaved } from "@/lib/money";
 
 /**
@@ -220,7 +220,7 @@ export default async function ProductPage({ params }: PageProps<"/products/[slug
             <ul className="mt-2 space-y-1.5">
               <li className="flex gap-2">
                 <span aria-hidden="true" className="text-brand-500">✓</span>
-                Lagos 1&ndash;2 working days, everywhere else 2&ndash;5
+                {DELIVERY.footer}
               </li>
               <li className="flex gap-2">
                 <span aria-hidden="true" className="text-brand-500">✓</span>

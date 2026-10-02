@@ -117,9 +117,7 @@ export default function CartPage() {
           <span>Subtotal</span>
           <span className="font-bold tabular-nums">{formatNaira(subtotal)}</span>
         </div>
-        <p className="mt-1 text-xs text-ink-500">
-          Delivery is calculated at checkout. Final amounts are confirmed by the server.
-        </p>
+        <p className="mt-1 text-xs text-ink-500">Delivery is calculated at checkout.</p>
 
         <Link
           href="/checkout"

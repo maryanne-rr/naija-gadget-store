@@ -31,10 +31,6 @@ export default async function CheckoutPage({ searchParams }: PageProps<"/checkou
     <div className="mx-auto max-w-3xl space-y-8">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Checkout</h1>
-        <p className="mt-1 text-ink-500">
-          Next step is the payment page. No card details are collected and no
-          money moves.
-        </p>
       </div>
 
       {!integrations.database && (

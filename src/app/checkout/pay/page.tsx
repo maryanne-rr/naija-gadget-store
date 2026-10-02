@@ -92,10 +92,7 @@ export default async function PayPage({ searchParams }: PageProps<"/checkout/pay
 
   return (
     <Card>
-      <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">
-        Test payment gateway
-      </p>
-      <h1 className="mt-1 text-xl font-bold">Pay {formatNaira(order.amount)}</h1>
+      <h1 className="text-xl font-bold">Pay {formatNaira(order.amount)}</h1>
       <p className="mt-1 text-sm text-ink-500">
         Order <span className="font-mono">{order.reference}</span> for {order.email}
       </p>

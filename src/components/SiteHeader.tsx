@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCart } from "./cart/CartProvider";
 import { signOutAction } from "@/app/actions";
 import { GoogleSignInButton } from "./GoogleSignInButton";
+import { DELIVERY } from "@/lib/catalog";
 
 /**
  * Site header: announcement bar, navigation, cart badge and the account menu.
@@ -49,7 +50,7 @@ export function SiteHeader({ user, authReady }: { user: HeaderUser | null; authR
             <span className="font-semibold">All 36 states + FCT</span>
             <span className="hidden sm:inline">
               {" "}
-              &middot; Lagos 1&ndash;2 working days, elsewhere 2&ndash;5
+              &middot; {DELIVERY.short}
             </span>
           </p>
           <p className="hidden sm:block">Original brands &middot; card, transfer or USSD</p>

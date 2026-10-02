@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DELIVERY } from "@/lib/catalog";
 
 /**
  * The footer.
@@ -62,8 +63,7 @@ export function SiteFooter() {
               Naija Gadget Store
             </p>
             <p className="mt-2 max-w-xs text-sm text-ink-500 dark:text-ink-400">
-              Chargers, power banks, audio and phone accessories. Delivered nationwide
-              within 2&ndash;4 working days.
+              Chargers, power banks, audio and phone accessories.
             </p>
           </div>
 
@@ -106,19 +106,16 @@ export function SiteFooter() {
           <div>
             <h2 className="text-sm font-semibold">Delivery</h2>
             <ul className="mt-3 space-y-2 text-sm text-ink-500 dark:text-ink-400">
-              <li>Nationwide, 2&ndash;4 working days</li>
+              {/* Rendered from the shared constant, not typed here. The footer
+                  said 2-4 while the storefront said 2-5, and two different
+                  delivery promises on one page is not a detail anybody trusts. */}
+              <li>{DELIVERY.footer}</li>
               <li>Pay by card, bank transfer or USSD</li>
               <li>7-day returns on unopened items</li>
               <li>hello@naijagadgets.example</li>
             </ul>
           </div>
         </div>
-
-        {/* The one thing worth saying on the page itself: /checkout/pay looks
-            like it charges a card, and it does not. Stated plainly, once. */}
-        <p className="mt-10 border-t border-ink-200 pt-6 text-xs text-ink-400 dark:border-ink-700">
-          Demonstration payment page &mdash; no card details are collected and no money moves.
-        </p>
       </div>
     </footer>
   );

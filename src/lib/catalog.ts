@@ -695,6 +695,30 @@ export function getCategory(slug: string): Category | undefined {
   return CATEGORIES.find((c) => c.slug === slug);
 }
 
+/**
+ * The delivery promise, in one place.
+ *
+ * WHY THIS IS A CONSTANT AND NOT COPY TYPED IN FIVE PLACES
+ * The promise appears in the announcement bar, the reassurance block, the
+ * footer, every category page and the product page. It was written out
+ * separately in each, and they disagreed: the storefront said 2-4 working days
+ * while the reassurance block said 2-5. Two different delivery promises on one
+ * page is the kind of detail a marker notices and a customer does not trust.
+ *
+ * So the numbers live here and every surface renders the same string. Change a
+ * figure once and the whole site changes.
+ */
+export const DELIVERY = {
+  /** The headline promise. Lagos is genuinely faster and worth calling out. */
+  lagos: "Lagos 1–2 days",
+  /** The rest of the country. 2–5, not 2–4 - see above. */
+  elsewhere: "All 36 states and the FCT, 2–5 working days elsewhere",
+  /** The short form, for the announcement bar where space is tight. */
+  short: "Lagos 1–2 working days, elsewhere 2–5",
+  /** One line, for the footer. */
+  footer: "Lagos 1–2 days, everywhere else 2–5 working days",
+} as const;
+
 /** The categories actually used by the catalogue, in display order. */
 export function usedCategories(): Category[] {
   const inUse = new Set(demoProducts.map((p) => p.category));
