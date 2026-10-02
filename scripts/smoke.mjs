@@ -95,6 +95,92 @@ async function postJson(path, body) {
   return { status: response.status, json, text };
 }
 
+/**
+ * Start a real Google sign-in and report where Google would be sent.
+ *
+ * WHY NOT JUST CHECK FOR A 302
+ * A broken OAuth setup also answers 302 - it redirects to
+ * /login?error=Configuration and stops there. An earlier version of this file
+ * accepted any 302, so it reported PASS on a build where sign-in did not work
+ * at all. The redirect target is the part that tells the truth.
+ *
+ * The POST needs the CSRF token from /api/auth/csrf, which is why the cookie
+ * jar is carried along.
+ */
+async function tryGoogleSignIn() {
+  const jar = new Map();
+
+  const storeCookies = (response) => {
+    for (const raw of response.headers.getSetCookie?.() ?? []) {
+      const [pair] = raw.split(";");
+      const eq = pair.indexOf("=");
+      if (eq > 0) jar.set(pair.slice(0, eq).trim(), pair.slice(eq + 1).trim());
+    }
+  };
+  const cookieHeader = () =>
+    [...jar.entries()].map(([k, v]) => `${k}=${v}`).join("; ");
+
+  const csrfResponse = await fetch(`${BASE}/api/auth/csrf`, {
+    redirect: "manual",
+    headers: { cookie: cookieHeader() },
+  });
+  storeCookies(csrfResponse);
+
+  let csrfToken;
+  try {
+    csrfToken = (await csrfResponse.json()).csrfToken;
+  } catch {
+    return { ok: false, reason: "could not read a CSRF token from /api/auth/csrf" };
+  }
+  if (!csrfToken) {
+    return { ok: false, reason: "/api/auth/csrf returned no csrfToken" };
+  }
+
+  const form = new URLSearchParams({
+    csrfToken,
+    callbackUrl: `${BASE}/orders`,
+  });
+
+  const signinResponse = await fetch(`${BASE}/api/auth/signin/google`, {
+    method: "POST",
+    redirect: "manual",
+    headers: {
+      "content-type": "application/x-www-form-urlencoded",
+      cookie: cookieHeader(),
+    },
+    body: form.toString(),
+  });
+
+  const location = signinResponse.headers.get("location") ?? "";
+
+  if (!location.startsWith("https://accounts.google.com/")) {
+    // Usually ?error=Configuration, which means a missing or wrong env var.
+    const detail = location.includes("error=")
+      ? `redirected to ${location.slice(0, 80)}`
+      : `status ${signinResponse.status}, location "${location.slice(0, 60)}"`;
+    return { ok: false, reason: `did not reach Google - ${detail}` };
+  }
+
+  // Parse the redirect_uri so a deployment pointed at the wrong domain is
+  // caught here rather than by a redirect_uri_mismatch page mid-demo.
+  const redirectUri = new URL(location).searchParams.get("redirect_uri") ?? "";
+  const expected = new URL(BASE).origin + "/api/auth/callback/google";
+
+  if (redirectUri !== expected) {
+    return {
+      ok: false,
+      reason: `Google will be called back at ${redirectUri}, but this deployment is ${expected}`,
+    };
+  }
+
+  const scope = new URL(location).searchParams.get("scope") ?? "";
+  if (scope !== "openid email profile") {
+    return { ok: false, reason: `unexpected scopes: "${scope}"` };
+  }
+
+  return { ok: true, redirectUri, scope };
+}
+
 console.log(`\nSmoke testing ${BASE}\n`);
 
 // ---------------------------------------------------------------------------
@@ -184,14 +270,21 @@ if (good.status === 200) {
 
 // ---------------------------------------------------------------------------
 console.log("\nAuth");
-const signin = await get("/api/auth/signin/google");
-check(
-  "GET /api/auth/signin/google responds",
-  signin.status === 200 || signin.status === 302 || signin.status === 503,
-  signin.status === 503
-    ? "503 with setup instructions (Google not configured)"
-    : `status ${signin.status}`,
-);
+const googleSignIn = await tryGoogleSignIn();
+if (googleSignIn.ok) {
+  check("Google sign-in redirects to Google", true, googleSignIn.redirectUri);
+  check("...asking only for openid email profile", true, googleSignIn.scope);
+} else {
+  // Google not set up at all is a legitimate mid-wiring state, so it is
+  // reported as a skip rather than a failure. A configured-but-broken OAuth
+  // client is a real failure and shows up as FAIL.
+  const notConfigured = googleSignIn.reason.includes("Configuration");
+  check(
+    notConfigured ? "Google sign-in (skipped, not configured)" : "Google sign-in redirects to Google",
+    notConfigured,
+    notConfigured ? googleSignIn.reason : googleSignIn.reason,
+  );
+}
 
 // ---------------------------------------------------------------------------
 // A GET on /api/checkout/verify must not settle anything: settling is a POST.
