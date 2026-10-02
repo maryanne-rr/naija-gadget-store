@@ -1,5 +1,4 @@
 import "server-only";
-import { env } from "./env";
 
 /**
  * Dummy payment gateway.
@@ -84,13 +83,13 @@ export function generateOrderReference(prefix = "NAI"): string {
 // ---------------------------------------------------------------------------
 
 /** Create the transaction and return where the customer should go to pay. */
-export function startPayment(input: StartPaymentInput): StartPaymentResult {
+export function startPayment(input: StartPaymentInput, origin: string): StartPaymentResult {
   void input;
 
   // With a real gateway this would be an HTTP call, and the customer would be
   // redirected off-site to the bank's page.
   return {
-    redirectTo: `${env.appUrl}/checkout/pay?reference=${encodeURIComponent(input.reference)}`,
+    redirectTo: `${origin}/checkout/pay?reference=${encodeURIComponent(input.reference)}`,
     reference: input.reference,
     provider: PAYMENT_PROVIDER,
   };

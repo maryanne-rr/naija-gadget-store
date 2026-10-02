@@ -3,6 +3,8 @@ import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { createOrder, CheckoutError } from "@/lib/orders";
 import { startPayment } from "@/lib/payment";
+import { originFromRequest } from "@/lib/origin";
+import { env } from "@/lib/env";
 
 /**
  * POST /api/checkout
@@ -80,15 +82,20 @@ export async function POST(request: Request) {
       userId,
     });
 
-    const payment = await startPayment({
-      reference: order.reference,
-      email: order.email,
-      amount: order.amount,
-      // order.lines is priced by the database - this is what the payment page
-      // shows, so it agrees with what the customer is about to be charged.
-      lines: order.lines,
-      userId,
-    });
+    const payment = await startPayment(
+      {
+        reference: order.reference,
+        email: order.email,
+        amount: order.amount,
+        // order.lines is priced by the database - this is what the payment page
+        // shows, so it agrees with what the customer is about to be charged.
+        lines: order.lines,
+        userId,
+      },
+      // Derived from the request rather than configured, so the same build
+      // works on localhost, on the Vercel domain, and on preview deployments.
+      originFromRequest(request, env.authUrl),
+    );
 
     return NextResponse.json({
       ok: true,

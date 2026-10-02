@@ -24,7 +24,15 @@ export const env = {
   googleClientSecret: read("AUTH_GOOGLE_SECRET"),
   authSecret: read("AUTH_SECRET"),
 
-  appUrl: read("AUTH_URL") ?? "http://localhost:3000",
+  /**
+   * Optional. Overrides the origin used for the payment redirect.
+   *
+   * Usually left unset: lib/origin.ts derives the correct origin from the
+   * request, which means one build works on localhost, on the production
+   * domain, and on preview deployments. Set this only to pin a known-good
+   * origin, since a host header is attacker-controllable.
+   */
+  authUrl: read("AUTH_URL"),
 } as const;
 
 /** Which integrations are switched on. Drives the status badges in the footer. */
