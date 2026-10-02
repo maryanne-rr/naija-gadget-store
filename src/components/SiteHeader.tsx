@@ -99,18 +99,17 @@ export function SiteHeader({ user, authReady }: { user: HeaderUser | null; authR
             ))}
           </ul>
 
-          {/* Track order lives here rather than in the carousel.
-              Three buttons on a rotating slide made it a choice-shopping
-              interface that undercut the advert; and somebody looking for an
-              order they already placed looks in the header, not at whatever
-              product happens to be on the banner. Visible at every width -
-              hiding it on small screens removed it from exactly the customers
-              most likely to be checking an order from their phone. */}
+          {/* Where an order goes. Labelled "Orders" rather than "Track order"
+              because that is what the header is for - a destination, like Shop
+              or Cart. The action of tracking something is offered on the page
+              itself, where somebody who has just paid is actually looking for
+              it. Visible at every width: hiding it below lg removed it from
+              exactly the customers most likely to check an order on a phone. */}
           <Link
             href="/orders"
             className="rounded-card px-3 py-2 text-sm font-medium text-ink-600 transition-colors hover:bg-brand-50 hover:text-brand-700 dark:text-ink-300 dark:hover:bg-ink-800 dark:hover:text-white"
           >
-            Track order
+            Orders
           </Link>
 
           {/* ---- Account ---- */}

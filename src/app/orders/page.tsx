@@ -123,12 +123,13 @@ function OrderCard({
 function TrackForm({ error }: { error: string | null }) {
   return (
     <form
+      id="track"
       action={trackOrder}
-      className="rounded-card border border-ink-200 bg-white p-5 dark:border-ink-700 dark:bg-ink-900"
+      className="scroll-mt-28 rounded-card border border-ink-200 bg-white p-5 dark:border-ink-700 dark:bg-ink-900"
     >
       <h2 className="font-semibold">Track an order</h2>
       <p className="mt-1 text-sm text-ink-500">
-        Bought without an account? Enter the reference from your receipt and the email you used.
+        Enter the reference from your receipt and the email you used.
       </p>
 
       {error && (
@@ -246,11 +247,20 @@ export default async function OrdersPage({
 
   return (
     <div className="mx-auto max-w-3xl space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Track your order</h1>
-        <p className="mt-1 text-ink-500">
-          Signed in with Google, or bought without an account? Both are below.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <h1 className="text-2xl font-bold tracking-tight">Orders</h1>
+
+        {/* The tracking action lives here rather than in the header, which just
+            names the destination. Somebody who has just paid arrives on this
+            page wanting to check on one order, and this is where that button
+            belongs - it is also the only entry point a guest needs, since they
+            have no session and would otherwise see nothing but the form. */}
+        <a
+          href="#track"
+          className="rounded-card border border-ink-300 px-4 py-2 text-sm font-semibold text-ink-800 transition-colors hover:border-brand-400 hover:text-brand-700 dark:border-ink-600 dark:text-ink-100"
+        >
+          Track order
+        </a>
       </div>
 
       {/* ---- A tracked guest order ---- */}
@@ -265,8 +275,13 @@ export default async function OrdersPage({
         </section>
       )}
 
-      {/* ---- Guest lookup ---- */}
-      {!userId && <TrackForm error={error} />}
+      {/* ---- Lookup, shown to everyone ----
+          Not just guests. A signed-in customer may have placed an order as a
+          guest before ever creating an account, and the only record of it is
+          the reference in their inbox - so hiding the form from them would hide
+          their own order. It also means the "Track order" button above always
+          has a target. */}
+      <TrackForm error={error} />
 
       {/* ---- Signed-in history ---- */}
       {userId && (
@@ -302,8 +317,8 @@ export default async function OrdersPage({
         </section>
       )}
 
-      {/* ---- Signed out, nothing tracked ---- */}
-      {!userId && !tracked && (
+      {/* ---- Signed out ---- */}
+      {!userId && (
         <div className="text-center">
           <p className="text-sm text-ink-500">Or sign in to see every order at once.</p>
           <div className="mt-3 flex justify-center">

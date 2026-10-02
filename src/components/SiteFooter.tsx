@@ -45,10 +45,7 @@ const SHOP_LINKS = [
 const COMPANY_LINKS = [
   { href: "/", label: "All products" },
   { href: "/cart", label: "Your cart" },
-  // Same wording as the header link. "Order history" describes what the page
-  // shows a signed-in customer; "Track your order" describes what somebody who
-  // has just paid wants from it, and that is the guest as often as not.
-  { href: "/orders", label: "Track your order" },
+  { href: "/orders", label: "Orders" },
 ];
 
 export function SiteFooter() {

@@ -151,7 +151,7 @@ export function DealCarousel({ slides }: { slides: Slide[] }) {
               href={`/products/${slide.slug}`}
               className="inline-block rounded-card bg-brand-600 px-5 py-3 font-semibold text-white transition-colors hover:bg-brand-700"
             >
-              Get the deal
+              Get deal
             </Link>
           </div>
 
