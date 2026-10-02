@@ -150,6 +150,71 @@ for (const product of demoProducts) {
 }
 
 // ---------------------------------------------------------------------------
+// 6b. Discounts are genuine, and display-only.
+//
+// A was-price that is not above the current price renders a badge reading
+// "Save 0%", or a struck-through figure lower than the price beside it. Both
+// teach a shopper that the badge means nothing, which then costs the real
+// discounts their effect. This is the mistake the database constraint also
+// prevents, but the constraint cannot run without the migration being applied,
+// and this catches it before that.
+for (const product of demoProducts) {
+  const compareAt = product.compare_at_price;
+
+  if (compareAt === null || compareAt === undefined) {
+    if (product.deal) {
+      problems.push(`${product.slug} is flagged for the deal rotation but has no compare_at_price`);
+    }
+    continue;
+  }
+
+  if (!Number.isInteger(compareAt)) {
+    problems.push(`${product.slug} compare_at_price ${compareAt} is not an integer count of Kobo`);
+  } else if (compareAt <= product.price) {
+    problems.push(
+      `${product.slug} compare_at_price ${compareAt} is not above price ${product.price} - ` +
+        `that renders as "Save 0%", not a discount`,
+    );
+  }
+}
+
+// The rotation needs enough genuinely-reduced products to be worth showing, and
+// they must span more than one category - a deal banner that only ever features
+// power banks is how the shop came to look like a power bank shop.
+const dealProducts = demoProducts.filter(
+  (p) =>
+    p.deal &&
+    typeof p.compare_at_price === "number" &&
+    p.compare_at_price > p.price &&
+    p.stock > 0,
+);
+const dealCategories = new Set(dealProducts.map((p) => p.category));
+
+if (dealProducts.length < 3) {
+  problems.push(
+    `only ${dealProducts.length} product(s) can appear in the deal rotation - at least 3 are needed`,
+  );
+}
+if (dealCategories.size < 3) {
+  problems.push(
+    `the deal rotation covers only ${dealCategories.size} category(ies) - ` +
+      `it must span at least 3, or the banner implies the shop only sells one kind of thing`,
+  );
+}
+
+// The rule that matters most, and the one a static check cannot do on its own:
+// compare_at_price must never reach a total. Assert it against the source, so a
+// future change that starts adding it to an order is caught here rather than by
+// a customer.
+const ordersSource = readFileSync(join(root, "src", "lib", "orders.ts"), "utf8");
+if (ordersSource.includes("compare_at_price")) {
+  problems.push(
+    "src/lib/orders.ts references compare_at_price. The was-price is display only - " +
+      "the amount charged must come from product.price alone.",
+  );
+}
+
+// ---------------------------------------------------------------------------
 // 7. Stock is a non-negative integer.
 // ---------------------------------------------------------------------------
 for (const product of demoProducts) {
@@ -168,7 +233,10 @@ if (env.NEXT_PUBLIC_SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY) {
   const key = env.SUPABASE_SERVICE_ROLE_KEY;
   const headers = { apikey: key, Authorization: `Bearer ${key}` };
 
-  const res = await fetch(`${url}/rest/v1/products?select=slug,category,spec`, { headers });
+  const res = await fetch(
+    `${url}/rest/v1/products?select=slug,category,spec,compare_at_price,deal`,
+    { headers },
+  );
 
   if (!res.ok) {
     // PostgREST reports a missing column as 42703 "column products.x does not
@@ -187,9 +255,11 @@ if (env.NEXT_PUBLIC_SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY) {
     } else if (missingColumn) {
       problems.push(
         `database column '${missingColumn}' does not exist. ` +
-          (missingColumn === "brand" || missingColumn === "spec" || missingColumn === "specs"
+          (["brand", "spec", "specs"].includes(missingColumn)
             ? "Run supabase/003-specs.sql in the Supabase SQL editor, then npm run seed."
-            : "Check the schema in supabase/schema.sql against the live database."),
+            : ["compare_at_price", "deal"].includes(missingColumn)
+              ? "Run supabase/004-discounts.sql in the Supabase SQL editor, then npm run seed."
+              : "Check the schema in supabase/schema.sql against the live database."),
       );
     } else if (res.status === 42501) {
       problems.push(
@@ -220,6 +290,27 @@ if (env.NEXT_PUBLIC_SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY) {
           `database columns 'brand'/'spec' do not exist. Run supabase/003-specs.sql in the Supabase SQL editor, then npm run seed.`,
         );
         break;
+      }
+      if (row.compare_at_price === undefined) {
+        problems.push(
+          `database columns 'compare_at_price'/'deal' do not exist. Run supabase/004-discounts.sql in the Supabase SQL editor, then npm run seed.`,
+        );
+        break;
+      }
+
+      // The catalogue and the database must agree about the was-price. A seeded
+      // row still showing its pre-discount figure is the single most
+      // embarrassing thing this shop could render: a struck-through price next
+      // to the price being charged, on a live site, with no discount applied.
+      const catalogueRow = demoProducts.find((p) => p.slug === row.slug);
+      if (catalogueRow && row.compare_at_price !== catalogueRow.compare_at_price) {
+        problems.push(
+          `${row.slug}: database compare_at_price is ${row.compare_at_price ?? "null"} but the ` +
+            `catalogue says ${catalogueRow.compare_at_price ?? "null"}. Run npm run seed.`,
+        );
+      }
+      if (catalogueRow && row.deal !== catalogueRow.deal) {
+        problems.push(`${row.slug}: database deal flag disagrees with the catalogue. Run npm run seed.`);
       }
     }
 

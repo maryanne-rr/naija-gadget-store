@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { Product } from "@/lib/catalog";
-import { formatNaira } from "@/lib/money";
+import { formatNaira, discountPercent } from "@/lib/money";
 import { AddToCartButton } from "./AddToCartButton";
 
 /**
@@ -27,6 +27,11 @@ import { AddToCartButton } from "./AddToCartButton";
 export function ProductCard({ product }: { product: Product }) {
   const soldOut = product.stock <= 0;
   const lowStock = !soldOut && product.stock <= 5;
+
+  // Null when there is no genuine saving, so the struck-through price and the
+  // badge are never rendered as "0% off" - a badge that reads zero teaches
+  // shoppers to ignore badges.
+  const percent = discountPercent(product.price, product.compare_at_price);
 
   return (
     <article className="group flex h-full flex-col overflow-hidden rounded-card border border-ink-200 bg-white transition-colors hover:border-brand-400 dark:border-ink-700 dark:bg-ink-900">
@@ -93,8 +98,23 @@ export function ProductCard({ product }: { product: Product }) {
         </h3>
 
         <div className="mt-auto flex items-end justify-between gap-3 pt-1">
-          <p className="tabular-nums text-lg font-bold text-ink-900 dark:text-ink-50">
-            {formatNaira(product.price)}
+          <p className="leading-tight">
+            {/* The saving badge sits above the prices rather than beside them:
+                on a card this narrow, a third inline element wraps and pushes
+                the Add to cart button out of alignment with its neighbours. */}
+            {percent !== null && (
+              <span className="mb-1 block w-fit rounded-card bg-signal-300 px-1.5 py-0.5 text-[11px] font-bold text-ink-950">
+                Save {percent}%
+              </span>
+            )}
+            <span className="tabular-nums block text-lg font-bold text-ink-900 dark:text-ink-50">
+              {formatNaira(product.price)}
+            </span>
+            {product.compare_at_price !== null && percent !== null && (
+              <s className="tabular-nums block text-xs text-ink-400">
+                {formatNaira(product.compare_at_price)}
+              </s>
+            )}
           </p>
 
           {/* The only client-side part of the card. */}

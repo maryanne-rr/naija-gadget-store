@@ -81,6 +81,12 @@ create table if not exists products (
   spec        text not null default '',
   -- Secondary figures, shown as chips on the product page.
   specs       text[] not null default '{}',
+  -- Price before a discount. DISPLAY ONLY - never used to compute a total. The
+  -- amount charged is always `price`. See supabase/004-discounts.sql.
+  compare_at_price integer,
+  -- May appear in the deal-of-the-day rotation. Separate from
+  -- compare_at_price because "reduced" and "deal of the day" are different claims.
+  deal        boolean not null default false,
   created_at  timestamptz not null default now()
 );
 
@@ -231,6 +237,20 @@ begin
   return found;
 end;
 $$;
+
+-- A was-price must be strictly above the price, or the discount badge is a lie.
+-- See supabase/004-discounts.sql for why this is a table constraint rather
+-- than a column CHECK.
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'products_compare_at_above_price'
+  ) then
+    alter table products
+      add constraint products_compare_at_above_price
+      check (compare_at_price is null or compare_at_price > price);
+  end if;
+end $$;
 
 -- Trigger: any write that lands an order in 'paid' gets a paid_at timestamp.
 drop trigger if exists orders_mark_paid on orders;

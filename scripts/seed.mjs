@@ -106,6 +106,9 @@ const rows = demoProducts.map((product) => ({
   brand: product.brand,
   spec: product.spec,
   specs: product.specs,
+  // Display only. Never used to compute a total - see the Product interface.
+  compare_at_price: product.compare_at_price,
+  deal: product.deal,
 }));
 
 console.log(`\nSeeding ${rows.length} products into ${dim(SUPABASE_URL)}\n`);

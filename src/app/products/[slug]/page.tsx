@@ -5,7 +5,7 @@ import { AddToCartButton } from "@/components/AddToCartButton";
 import { ProductCard } from "@/components/ProductCard";
 import { getProductBySlug, listProductsByCategory } from "@/lib/products";
 import { getCategory } from "@/lib/catalog";
-import { formatNaira } from "@/lib/money";
+import { formatNaira, discountPercent, amountSaved } from "@/lib/money";
 
 /**
  * A single product.
@@ -38,6 +38,9 @@ export default async function ProductPage({ params }: PageProps<"/products/[slug
   }
 
   const soldOut = product.stock <= 0;
+
+  // Null unless there is a genuine saving, so nothing ever renders "Save 0%".
+  const percent = discountPercent(product.price, product.compare_at_price);
 
   // The category this product sits in, if it has one. Products seeded before
   // categories existed have null, so this has to cope with that.
@@ -146,7 +149,23 @@ export default async function ProductPage({ params }: PageProps<"/products/[slug
             )}
           </div>
 
-          <p className="tabular-nums text-3xl font-bold">{formatNaira(product.price)}</p>
+          {/* Price. The struck-through figure is display only and never reaches
+              the cart or the order - the amount charged is always `price`. */}
+          <p className="leading-tight">
+            {percent !== null && (
+              <span className="mb-2 block w-fit rounded-card bg-signal-300 px-2.5 py-1 text-sm font-bold text-ink-950">
+                Save {percent}% &mdash; {formatNaira(amountSaved(product.price, product.compare_at_price)!)}
+              </span>
+            )}
+            <span className="tabular-nums block text-3xl font-bold">
+              {formatNaira(product.price)}
+            </span>
+            {product.compare_at_price !== null && percent !== null && (
+              <s className="tabular-nums mt-1 block text-lg text-ink-400 line-through decoration-2">
+                {formatNaira(product.compare_at_price)}
+              </s>
+            )}
+          </p>
 
           <p className="text-sm">
             {soldOut ? (

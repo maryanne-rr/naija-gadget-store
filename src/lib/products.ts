@@ -106,6 +106,15 @@ function normalise(row: Record<string, unknown> | null): Product | null {
     // existed gives undefined and a hand-edited row could give a JSON string.
     specs: Array.isArray(row.specs) ? row.specs.filter((s) => typeof s === "string") : [],
     category: typeof row.category === "string" ? row.category : null,
+
+    // compare_at_price arrives as a number, or absent on a row written before the
+    // column existed. Anything that is not a positive integer is treated as "not
+    // on offer", because a malformed was-price must never render a badge.
+    compare_at_price:
+      typeof row.compare_at_price === "number" && Number.isInteger(row.compare_at_price)
+        ? row.compare_at_price
+        : null,
+    deal: row.deal === true,
   };
 }
 

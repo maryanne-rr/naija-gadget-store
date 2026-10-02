@@ -13,7 +13,8 @@
     "e2e": "node scripts/e2e.mjs",
     "setup": "node scripts/setup.mjs",
     "check:categories": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-categories.mjs",
-    "check": "npm run typecheck && npm run build && npm run check:categories && npm run smoke"
+    "test:deals": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/test-deals.mjs",
+    "check": "npm run typecheck && npm run build && npm run check:categories && npm run test:deals && npm run smoke"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",
