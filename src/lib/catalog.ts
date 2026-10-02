@@ -711,13 +711,31 @@ export function getCategory(slug: string): Category | undefined {
 export const DELIVERY = {
   /** The headline promise. Lagos is genuinely faster and worth calling out. */
   lagos: "Lagos 1–2 days",
-  /** The rest of the country. 2–5, not 2–4 - see above. */
-  elsewhere: "All 36 states and the FCT, 2–5 working days elsewhere",
+  /**
+   * The rest of the country.
+   *
+   * "Outside Lagos" rather than "everywhere else": the phrase people actually
+   * use, and it is the one that answers the question being asked, which is
+   * whether the shop delivers to their town at all. "All 36 states and the FCT"
+   * is a claim about coverage that invites checking; "outside Lagos" is the same
+   * promise said the way it would be said in a shop.
+   */
+  elsewhere: "All 36 states and the FCT, 2–5 working days outside Lagos",
   /** The short form, for the announcement bar where space is tight. */
-  short: "Lagos 1–2 working days, elsewhere 2–5",
-  /** One line, for the footer. */
-  footer: "Lagos 1–2 days, everywhere else 2–5 working days",
+  short: "Lagos 1–2 working days, outside Lagos 2–5",
+  /** One line, for the footer and the product page. */
+  footer: "Lagos 1–2 days, outside Lagos 2–5 working days",
 } as const;
+
+/**
+ * How a customer can pay, in one place.
+ *
+ * Was "card, bank transfer or USSD" in four places. USSD is a real payment
+ * channel, but promising three options and offering two is worse than offering
+ * two and promising two - somebody who tries to pay by USSD and cannot is a
+ * support ticket and a lost sale.
+ */
+export const PAYMENT_METHODS = "Pay by card or bank transfer";
 
 /** The categories actually used by the catalogue, in display order. */
 export function usedCategories(): Category[] {

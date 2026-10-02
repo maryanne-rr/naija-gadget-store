@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { DELIVERY } from "@/lib/catalog";
+import { DELIVERY, PAYMENT_METHODS } from "@/lib/catalog";
 
 /**
  * The footer.
@@ -45,7 +45,10 @@ const SHOP_LINKS = [
 const COMPANY_LINKS = [
   { href: "/", label: "All products" },
   { href: "/cart", label: "Your cart" },
-  { href: "/orders", label: "Order history" },
+  // Same wording as the header link. "Order history" describes what the page
+  // shows a signed-in customer; "Track your order" describes what somebody who
+  // has just paid wants from it, and that is the guest as often as not.
+  { href: "/orders", label: "Track your order" },
 ];
 
 export function SiteFooter() {
@@ -110,7 +113,7 @@ export function SiteFooter() {
                   said 2-4 while the storefront said 2-5, and two different
                   delivery promises on one page is not a detail anybody trusts. */}
               <li>{DELIVERY.footer}</li>
-              <li>Pay by card, bank transfer or USSD</li>
+              <li>{PAYMENT_METHODS}</li>
               <li>7-day returns on unopened items</li>
               <li>hello@naijagadgets.example</li>
             </ul>

@@ -76,7 +76,6 @@ export default async function HomePage() {
     brand: product.brand,
     spec: product.spec,
     categoryName: product.category ? (getCategory(product.category)?.name ?? "") : "",
-    categorySlug: product.category,
     imageUrl: product.image_url,
     emoji: product.emoji,
     price: product.price,

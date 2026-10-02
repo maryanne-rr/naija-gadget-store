@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { AddToCartButton } from "@/components/AddToCartButton";
 import { ProductCard } from "@/components/ProductCard";
 import { getProductBySlug, listProductsByCategory } from "@/lib/products";
-import { getCategory, DELIVERY } from "@/lib/catalog";
+import { getCategory, DELIVERY, PAYMENT_METHODS } from "@/lib/catalog";
 import { formatNaira, discountPercent, amountSaved } from "@/lib/money";
 
 /**
@@ -224,7 +224,7 @@ export default async function ProductPage({ params }: PageProps<"/products/[slug
               </li>
               <li className="flex gap-2">
                 <span aria-hidden="true" className="text-brand-500">✓</span>
-                Pay by card, bank transfer or USSD
+                {PAYMENT_METHODS}
               </li>
               <li className="flex gap-2">
                 <span aria-hidden="true" className="text-brand-500">✓</span>

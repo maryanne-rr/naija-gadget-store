@@ -247,7 +247,7 @@ export default async function OrdersPage({
   return (
     <div className="mx-auto max-w-3xl space-y-8">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Your orders</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Track your order</h1>
         <p className="mt-1 text-ink-500">
           Signed in with Google, or bought without an account? Both are below.
         </p>

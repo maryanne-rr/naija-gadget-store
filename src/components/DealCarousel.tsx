@@ -35,8 +35,6 @@ interface Slide {
   brand: string;
   spec: string;
   categoryName: string;
-  /** Null for a product with no category; the second button is then hidden. */
-  categorySlug: string | null;
   imageUrl: string | null;
   emoji: string;
   price: number;
@@ -141,35 +139,19 @@ export function DealCarousel({ slides }: { slides: Slide[] }) {
             )}
           </p>
 
-          <div className="mt-6 flex flex-wrap items-center gap-3">
+          {/* One action only.
+              Three buttons on a rotating slide is a choice-shopping interface
+              that undercuts the one thing it is for. The carousel is an
+              advert: it should offer the product in front of you and get out of
+              the way. Category browsing belongs to the category tiles, and
+              tracking an existing order belongs in the header, where somebody
+              looking for it expects to find it. */}
+          <div className="mt-6">
             <Link
               href={`/products/${slide.slug}`}
-              className="rounded-card bg-brand-600 px-5 py-3 font-semibold text-white transition-colors hover:bg-brand-700"
+              className="inline-block rounded-card bg-brand-600 px-5 py-3 font-semibold text-white transition-colors hover:bg-brand-700"
             >
               Get the deal
-            </Link>
-
-            {/* Links to THIS slide's category, not a hardcoded one. It said
-                "Shop power banks" on every slide, so the JBL Flip 4 slide sent
-                you to the power bank section - which is precisely the impression
-                the carousel exists to remove. */}
-            {slide.categorySlug && (
-              <Link
-                href={`/category/${slide.categorySlug}`}
-                className="rounded-card border border-ink-300 px-5 py-3 font-semibold text-ink-800 transition-colors hover:border-brand-400 hover:text-brand-700 dark:border-ink-600 dark:text-ink-100"
-              >
-                {slide.categoryName}
-              </Link>
-            )}
-
-            {/* Track order sits on every slide regardless of what is on offer:
-                a customer who already bought wants this, and the carousel is
-                the first thing they see. */}
-            <Link
-              href="/orders"
-              className="rounded-card px-2 py-3 text-sm font-semibold text-brand-600 underline-offset-4 transition-colors hover:underline dark:text-brand-300"
-            >
-              Track your order
             </Link>
           </div>
 

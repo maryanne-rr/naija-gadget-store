@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCart } from "./cart/CartProvider";
 import { signOutAction } from "@/app/actions";
 import { GoogleSignInButton } from "./GoogleSignInButton";
-import { DELIVERY } from "@/lib/catalog";
+import { DELIVERY, PAYMENT_METHODS } from "@/lib/catalog";
 
 /**
  * Site header: announcement bar, navigation, cart badge and the account menu.
@@ -14,7 +14,7 @@ import { DELIVERY } from "@/lib/catalog";
  * account menu does not wait on a client-side session fetch.
  *
  * THE ANNOUNCEMENT BAR
- * "Lagos 1-2 days, elsewhere 2-5" sits above everything on every page. That is
+ * "Lagos 1-2 days, outside Lagos 2-5" sits above everything on every page. That is
  * a delivery promise, which is the single fact a Nigerian shopper most wants
  * before anything else and which no amount of page scrolling can put in front of
  * them. It is also checkable, unlike "fast shipping".
@@ -53,7 +53,9 @@ export function SiteHeader({ user, authReady }: { user: HeaderUser | null; authR
               &middot; {DELIVERY.short}
             </span>
           </p>
-          <p className="hidden sm:block">Original brands &middot; card, transfer or USSD</p>
+          <p className="hidden sm:block">
+            Original brands &middot; {PAYMENT_METHODS.replace("Pay by ", "")}
+          </p>
         </div>
       </div>
 
@@ -97,11 +99,18 @@ export function SiteHeader({ user, authReady }: { user: HeaderUser | null; authR
             ))}
           </ul>
 
+          {/* Track order lives here rather than in the carousel.
+              Three buttons on a rotating slide made it a choice-shopping
+              interface that undercut the advert; and somebody looking for an
+              order they already placed looks in the header, not at whatever
+              product happens to be on the banner. Visible at every width -
+              hiding it on small screens removed it from exactly the customers
+              most likely to be checking an order from their phone. */}
           <Link
             href="/orders"
-            className="hidden rounded-card px-3 py-2 text-sm font-medium text-ink-600 transition-colors hover:bg-brand-50 hover:text-brand-700 lg:block dark:text-ink-300 dark:hover:bg-ink-800 dark:hover:text-white"
+            className="rounded-card px-3 py-2 text-sm font-medium text-ink-600 transition-colors hover:bg-brand-50 hover:text-brand-700 dark:text-ink-300 dark:hover:bg-ink-800 dark:hover:text-white"
           >
-            Orders
+            Track order
           </Link>
 
           {/* ---- Account ---- */}
