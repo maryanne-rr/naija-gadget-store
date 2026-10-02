@@ -6,11 +6,17 @@ import { signOutAction } from "@/app/actions";
 import { GoogleSignInButton } from "./GoogleSignInButton";
 
 /**
- * Site header: navigation, cart badge and the account menu.
+ * Site header: announcement bar, navigation, cart badge and the account menu.
  *
  * This is a Client Component because the cart badge changes without a page
- * load. The signed-in user is read on the server and passed in as a prop, so
- * the account menu does not wait on a client-side session fetch.
+ * load. The signed-in user is read on the server and passed in as a prop, so the
+ * account menu does not wait on a client-side session fetch.
+ *
+ * THE ANNOUNCEMENT BAR
+ * "Lagos 1-2 days, elsewhere 2-5" sits above everything on every page. That is
+ * a delivery promise, which is the single fact a Nigerian shopper most wants
+ * before anything else and which no amount of page scrolling can put in front of
+ * them. It is also checkable, unlike "fast shipping".
  */
 
 interface HeaderUser {
@@ -18,6 +24,14 @@ interface HeaderUser {
   email: string | null;
   image: string | null;
 }
+
+/** The categories worth linking from the bar. Storage is reachable from the home page. */
+const NAV_LINKS = [
+  { href: "/category/power", label: "Power" },
+  { href: "/category/audio", label: "Audio" },
+  { href: "/category/chargers", label: "Cables" },
+  { href: "/category/phone-accessories", label: "Accessories" },
+];
 
 export function SiteHeader({ user, authReady }: { user: HeaderUser | null; authReady: boolean }) {
   const { count, hydrated } = useCart();
@@ -27,27 +41,46 @@ export function SiteHeader({ user, authReady }: { user: HeaderUser | null; authR
   const badge = hydrated ? count : 0;
 
   return (
-    <header className="sticky top-0 z-40 border-b border-ink-200 bg-white/85 backdrop-blur dark:border-ink-700 dark:bg-ink-900/85">
+    <header className="sticky top-0 z-40 border-b border-ink-200 bg-white/90 backdrop-blur dark:border-ink-700 dark:bg-ink-950/90">
+      {/* ---- Announcement bar ---- */}
+      <div className="bg-brand-600 text-white">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-x-6 gap-y-1 px-4 py-1.5 text-xs sm:justify-between">
+          <p>
+            <span className="font-semibold">All 36 states + FCT</span>
+            <span className="hidden sm:inline">
+              {" "}
+              &middot; Lagos 1&ndash;2 working days, elsewhere 2&ndash;5
+            </span>
+          </p>
+          <p className="hidden sm:block">Original brands &middot; card, transfer or USSD</p>
+        </div>
+      </div>
+
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4">
-        {/* No flag emoji. U+1F1F3 U+1F1EC is two regional indicators rather than
-            a character, so it draws a flag on macOS and Android and "NG" in a
-            box on Windows - a broken-looking letter in the shop's own wordmark.
-            A plain wordmark renders identically everywhere. */}
         <Link href="/" className="font-display text-lg font-bold tracking-tight">
           Naija Gadgets
         </Link>
 
         <nav className="flex items-center gap-1 sm:gap-2">
-          <Link
-            href="/"
-            className="rounded-lg px-3 py-2 text-sm font-medium text-ink-600 hover:bg-ink-100 hover:text-ink-900 dark:text-ink-300 dark:hover:bg-ink-800 dark:hover:text-white"
-          >
-            Shop
-          </Link>
+          {/* Category links, hidden on the narrowest screens where they would
+              push the cart off-screen. They are still reachable from the home
+              page tiles, so nothing becomes unreachable. */}
+          <ul className="mr-1 hidden items-center md:flex">
+            {NAV_LINKS.map((link) => (
+              <li key={link.href}>
+                <Link
+                  href={link.href}
+                  className="rounded-card px-3 py-2 text-sm font-medium text-ink-600 transition-colors hover:bg-brand-50 hover:text-brand-700 dark:text-ink-300 dark:hover:bg-ink-800 dark:hover:text-white"
+                >
+                  {link.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
 
           <Link
             href="/orders"
-            className="rounded-lg px-3 py-2 text-sm font-medium text-ink-600 hover:bg-ink-100 hover:text-ink-900 dark:text-ink-300 dark:hover:bg-ink-800 dark:hover:text-white"
+            className="hidden rounded-card px-3 py-2 text-sm font-medium text-ink-600 transition-colors hover:bg-brand-50 hover:text-brand-700 lg:block dark:text-ink-300 dark:hover:bg-ink-800 dark:hover:text-white"
           >
             Orders
           </Link>
@@ -61,7 +94,7 @@ export function SiteHeader({ user, authReady }: { user: HeaderUser | null; authR
               <form action={signOutAction}>
                 <button
                   type="submit"
-                  className="rounded-lg border border-ink-300 px-3 py-2 text-sm font-medium hover:bg-ink-100 dark:border-ink-600 dark:hover:bg-ink-800"
+                  className="rounded-card border border-ink-300 px-3 py-2 text-sm font-medium transition-colors hover:bg-brand-50 dark:border-ink-600 dark:hover:bg-ink-800"
                 >
                   Sign out
                 </button>
@@ -69,11 +102,11 @@ export function SiteHeader({ user, authReady }: { user: HeaderUser | null; authR
             </div>
           ) : authReady ? (
             <GoogleSignInButton
-              className="rounded-lg border border-ink-300 px-3 py-2 text-sm font-semibold hover:bg-ink-100 dark:border-ink-600 dark:hover:bg-ink-800"
+              className="rounded-card border border-ink-300 px-3 py-2 text-sm font-semibold transition-colors hover:bg-brand-50 dark:border-ink-600 dark:hover:bg-ink-800"
             />
           ) : (
             <span
-              className="rounded-lg border border-dashed border-ink-300 px-3 py-2 text-sm text-ink-400 dark:border-ink-600"
+              className="rounded-card border border-dashed border-ink-300 px-3 py-2 text-sm text-ink-400 dark:border-ink-600"
               title="Set AUTH_GOOGLE_ID and AUTH_GOOGLE_SECRET in .env.local"
             >
               Sign in
@@ -83,14 +116,13 @@ export function SiteHeader({ user, authReady }: { user: HeaderUser | null; authR
           {/* ---- Cart ---- */}
           <Link
             href="/cart"
-            className="relative rounded-lg bg-ink-900 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-700 dark:bg-brand-600 dark:hover:bg-brand-500"
+            className="relative rounded-card bg-brand-600 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-700"
           >
             <span className="flex items-center gap-2">
-              <span aria-hidden="true">🛒</span>
               <span className="hidden sm:inline">Cart</span>
             </span>
             {badge > 0 && (
-              <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-500 px-1 text-xs font-bold text-ink-900">
+              <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-signal-300 px-1 text-xs font-bold text-ink-950">
                 {badge}
               </span>
             )}

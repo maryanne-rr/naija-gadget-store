@@ -105,6 +105,40 @@ for (const product of demoProducts) {
 }
 
 // ---------------------------------------------------------------------------
+// 5b. The specification fields are filled in.
+//
+// These three are not decoration: the product card leads with `spec`, so an
+// empty one renders a blank line at the top of the tile where the deciding
+// number should be, and a card whose number is missing looks broken rather than
+// sparse. Checking here means the failure is a command that exits non-zero
+// instead of a shop front nobody notices is wrong.
+// ---------------------------------------------------------------------------
+for (const product of demoProducts) {
+  if (!product.brand) problems.push(`${product.slug} has no brand`);
+  if (!product.spec) problems.push(`${product.slug} has no spec - the card would lead with a blank line`);
+  if (!Array.isArray(product.specs) || product.specs.length === 0) {
+    problems.push(`${product.slug} has no secondary specs`);
+  }
+}
+
+// The spec must be short. It is set at 24px on a card that is about 300px wide;
+// anything longer wraps to three lines and pushes the price off the bottom.
+for (const product of demoProducts) {
+  if (product.spec && product.spec.length > 16) {
+    problems.push(
+      `${product.slug} spec "${product.spec}" is ${product.spec.length} characters - keep it under 16 so it stays on one line`,
+    );
+  }
+}
+
+// Every category must declare what it is compared by, and that basis is shown on
+// the tile. An empty string would render as "compared by" with nothing after it.
+for (const category of CATEGORIES) {
+  if (!category.comparedBy) problems.push(`category "${category.slug}" has no comparedBy`);
+  if (!category.delivery) problems.push(`category "${category.slug}" has no delivery note`);
+}
+
+// ---------------------------------------------------------------------------
 // 6. Prices are whole Kobo and non-negative. A float here would be a silent
 //    rounding bug that only shows up when an order total is off by one kobo.
 // ---------------------------------------------------------------------------
@@ -134,13 +168,36 @@ if (env.NEXT_PUBLIC_SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY) {
   const key = env.SUPABASE_SERVICE_ROLE_KEY;
   const headers = { apikey: key, Authorization: `Bearer ${key}` };
 
-  const res = await fetch(`${url}/rest/v1/products?select=slug,category`, { headers });
+  const res = await fetch(`${url}/rest/v1/products?select=slug,category,spec`, { headers });
 
   if (!res.ok) {
-    problems.push(
-      `could not read products from the database: HTTP ${res.status}. ` +
-        `If this says permission denied, run supabase/002-categories.sql first.`,
-    );
+    // PostgREST reports a missing column as 42703 "column products.x does not
+    // exist", which is indistinguishable from a permissions problem unless the
+    // message names the column. Say which migration is outstanding rather than
+    // sending the reader to the wrong file.
+    const body = await res.json().catch(() => null);
+    const message = String(body?.message ?? "");
+
+    const missingColumn = message.match(/column products\.(\w+) does not exist/)?.[1];
+
+    if (missingColumn === "category") {
+      problems.push(
+        `database column 'category' does not exist. Run supabase/002-categories.sql in the Supabase SQL editor, then npm run seed.`,
+      );
+    } else if (missingColumn) {
+      problems.push(
+        `database column '${missingColumn}' does not exist. ` +
+          (missingColumn === "brand" || missingColumn === "spec" || missingColumn === "specs"
+            ? "Run supabase/003-specs.sql in the Supabase SQL editor, then npm run seed."
+            : "Check the schema in supabase/schema.sql against the live database."),
+      );
+    } else if (res.status === 42501) {
+      problems.push(
+        `permission denied reading products. Run supabase/schema.sql in the Supabase SQL editor to apply the grants.`,
+      );
+    } else {
+      problems.push(`could not read products from the database: HTTP ${res.status} ${message}`);
+    }
   } else {
     const rows = await res.json();
 
@@ -157,6 +214,12 @@ if (env.NEXT_PUBLIC_SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY) {
       }
       if (row.category !== null && !known.has(row.category)) {
         problems.push(`database row "${row.slug}" has unknown category "${row.category}"`);
+      }
+      if (row.spec === undefined) {
+        problems.push(
+          `database columns 'brand'/'spec' do not exist. Run supabase/003-specs.sql in the Supabase SQL editor, then npm run seed.`,
+        );
+        break;
       }
     }
 

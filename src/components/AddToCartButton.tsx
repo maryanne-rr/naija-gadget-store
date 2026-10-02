@@ -34,7 +34,7 @@ export function AddToCartButton({ productId, name, slug, price, emoji, maxStock 
 
   if (maxStock <= 0) {
     return (
-      <span className="rounded-lg bg-ink-100 px-3 py-2 text-sm font-medium text-ink-400 dark:bg-ink-700">
+      <span className="rounded-card bg-ink-100 px-3 py-2 text-sm font-medium text-ink-400 dark:bg-ink-800">
         Sold out
       </span>
     );
@@ -56,7 +56,7 @@ export function AddToCartButton({ productId, name, slug, price, emoji, maxStock 
       // be lost against the empty initial state.
       disabled={!hydrated}
       aria-live="polite"
-      className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
+      className={`rounded-card px-3 py-2 text-sm font-semibold transition ${
         justAdded
           ? "bg-brand-600 text-white"
           : "bg-ink-900 text-white hover:bg-brand-700 dark:bg-brand-600 dark:hover:bg-brand-500"

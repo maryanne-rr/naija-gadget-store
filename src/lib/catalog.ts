@@ -40,6 +40,29 @@ export interface Product {
   featured: boolean;
   /** Slug from CATEGORIES. Nullable so an old row without one still loads. */
   category: string | null;
+  /**
+   * The manufacturer, shown small above the product name.
+   *
+   * In this market a brand name is a trust signal rather than decoration: an
+   * "original" Anker is worth more than an unbranded lookalike, and shoppers
+   * look for the name specifically.
+   */
+  brand: string;
+  /**
+   * The one number that decides the purchase, e.g. "20,000 mAh" or "40 hours".
+   *
+   * This is the most important field on the card and the reason it exists. A
+   * customer choosing between two power banks is not choosing between
+   * photographs, they are comparing 20,000 against 10,000. Putting that figure
+   * above the product name lets the comparison happen at a glance instead of
+   * requiring three paragraphs to be read - which on a phone, on the pavement,
+   * is the difference between a decision and an abandonment.
+   *
+   * Keep it short. If it needs a sentence it is not a spec.
+   */
+  spec: string;
+  /** One or two further specs, for the product page's comparison strip. */
+  specs: string[];
   created_at: string;
 }
 
@@ -49,6 +72,17 @@ export interface Category {
   /** One line for the category header and the nav tooltip. */
   blurb: string;
   emoji: string;
+  /**
+   * What a shopper compares across the products in here, e.g. "capacity".
+   *
+   * Stated on the category tile so the customer knows the basis of the
+   * comparison before opening it. "6 items, compared by capacity" is a promise
+   * that the page will be sorted and legible by that measure; "6 items" alone
+   * is just a count.
+   */
+  comparedBy: string;
+  /** The delivery promise, which is genuinely different Lagos vs everywhere. */
+  delivery: string;
 }
 
 /**
@@ -60,40 +94,52 @@ export interface Category {
  */
 export const CATEGORIES: Category[] = [
   {
-    slug: "audio",
-    name: "Audio",
-    blurb: "Headphones, earbuds and speakers that survive a long trip home.",
-    emoji: "\u{1F3A7}",
-  },
-  {
     slug: "power",
     name: "Power",
     blurb: "Banks and cells that keep going when the sockets do not.",
     emoji: "\u{1F50B}",
+    comparedBy: "capacity in mAh",
+    delivery: "Lagos next day",
+  },
+  {
+    slug: "audio",
+    name: "Audio",
+    blurb: "Headphones, earbuds and speakers that survive a long trip home.",
+    emoji: "\u{1F3A7}",
+    comparedBy: "battery in hours",
+    delivery: "Lagos next day",
   },
   {
     slug: "chargers",
     name: "Chargers & Cables",
     blurb: "Wall chargers, plugs and cables for every port you own.",
     emoji: "\u{1F50C}",
-  },
-  {
-    slug: "computer-accessories",
-    name: "Computer Accessories",
-    blurb: "Mice, keyboards and the small things that make a desk work.",
-    emoji: "\u{1F5B3}",
+    comparedBy: "wattage",
+    delivery: "Lagos next day",
   },
   {
     slug: "phone-accessories",
     name: "Phone Accessories",
     blurb: "Cases, tempered glass and pouches cut for your exact model.",
     emoji: "\u{1F4F1}",
+    comparedBy: "price",
+    delivery: "Same-day in Lagos",
+  },
+  {
+    slug: "computer-accessories",
+    name: "Computer Accessories",
+    blurb: "Mice, keyboards and the small things that make a desk work.",
+    emoji: "\u{1F5B3}",
+    comparedBy: "price",
+    delivery: "Lagos next day",
   },
   {
     slug: "storage",
     name: "Storage",
     blurb: "Cards and drives for the photos you have not backed up yet.",
     emoji: "\u{1F5BC}",
+    comparedBy: "capacity",
+    delivery: "Lagos next day",
   },
 ];
 
@@ -111,6 +157,9 @@ const SEED: SeedProduct[] = [
     image_url: "/products/jbl-tune-510bt.jpg",
     emoji: "\u{1F3A7}",
     stock: 17,
+    brand: "JBL",
+    spec: "40 hours",
+    specs: ["Pure Bass sound","Multipoint pairing","5-min quick charge"],
     featured: true,
     category: "audio",
   },
@@ -124,6 +173,9 @@ const SEED: SeedProduct[] = [
     image_url: "/products/bose-qc25.jpg",
     emoji: "\u{1F3A7}",
     stock: 8,
+    brand: "Bose",
+    spec: "ANC",
+    specs: ["Wired, no battery","Folds flat","Case included"],
     featured: false,
     category: "audio",
   },
@@ -137,6 +189,9 @@ const SEED: SeedProduct[] = [
     image_url: "/products/jbl-flip-4.jpg",
     emoji: "\u{1F0F}",
     stock: 21,
+    brand: "JBL",
+    spec: "12 hours",
+    specs: ["IP67 waterproof","Pairs into stereo","USB-C"],
     featured: true,
     category: "audio",
   },
@@ -150,6 +205,9 @@ const SEED: SeedProduct[] = [
     image_url: "/products/yamaha-tw-e3a-earbuds.jpg",
     emoji: "\u{1F3E3}",
     stock: 26,
+    brand: "Yamaha",
+    spec: "6 hours",
+    specs: ["24h with case","IPX4 sweat-proof","Touch controls"],
     featured: false,
     category: "audio",
   },
@@ -163,6 +221,9 @@ const SEED: SeedProduct[] = [
     image_url: "/products/nothing-ear-2-earbuds.jpg",
     emoji: "\u{1F3E3}",
     stock: 12,
+    brand: "Nothing",
+    spec: "40 hours",
+    specs: ["Active noise cancelling","Transparent case","Wireless charging"],
     featured: false,
     category: "audio",
   },
@@ -178,6 +239,9 @@ const SEED: SeedProduct[] = [
     image_url: "/products/anker-powercore-20000.jpg",
     emoji: "\u{1F50B}",
     stock: 24,
+    brand: "Anker",
+    spec: "20,000 mAh",
+    specs: ["18W USB-C","4 phone charges","LED readout"],
     featured: true,
     category: "power",
   },
@@ -191,6 +255,9 @@ const SEED: SeedProduct[] = [
     image_url: "/products/romoss-20000-powerbank.jpg",
     emoji: "\u{1F50B}",
     stock: 33,
+    brand: "Romoss",
+    spec: "20,000 mAh",
+    specs: ["4 ports","45W USB-C","LED percentage"],
     featured: false,
     category: "power",
   },
@@ -204,6 +271,9 @@ const SEED: SeedProduct[] = [
     image_url: "/products/anker-powercore-5000.jpg",
     emoji: "\u{1F50B}",
     stock: 47,
+    brand: "Anker",
+    spec: "5,000 mAh",
+    specs: ["2 phone charges","Pocket sized","USB-C only"],
     featured: false,
     category: "power",
   },
@@ -217,6 +287,9 @@ const SEED: SeedProduct[] = [
     image_url: "/products/oraimo-power-bank-20000.jpg",
     emoji: "\u{26F1}",
     stock: 38,
+    brand: "Oraimo",
+    spec: "20,000 mAh",
+    specs: ["22.5W fast charge","Numeric readout","USB-C in and out"],
     featured: false,
     category: "power",
   },
@@ -232,6 +305,9 @@ const SEED: SeedProduct[] = [
     image_url: "/products/oraimo-65w-gan-charger.jpg",
     emoji: "\u{1F50C}",
     stock: 41,
+    brand: "Oraimo",
+    spec: "65W",
+    specs: ["Charges a 13in laptop","2x USB-C + 1x USB-A","Half the size"],
     featured: true,
     category: "chargers",
   },
@@ -245,6 +321,9 @@ const SEED: SeedProduct[] = [
     image_url: "/products/anker-powerport-40w.jpg",
     emoji: "\u{1F50C}",
     stock: 29,
+    brand: "Anker",
+    spec: "40W",
+    specs: ["5 ports","PowerIQ fast charge","Folding prongs"],
     featured: false,
     category: "chargers",
   },
@@ -258,6 +337,9 @@ const SEED: SeedProduct[] = [
     image_url: "/products/lazos-gan-30w.jpg",
     emoji: "\u{1F50C}",
     stock: 52,
+    brand: "Lazos",
+    spec: "30W",
+    specs: ["GaN, runs cool","1x USB-C + 1x USB-A","Travel size"],
     featured: false,
     category: "chargers",
   },
@@ -271,6 +353,9 @@ const SEED: SeedProduct[] = [
     image_url: "/products/braided-usbc-cable.jpg",
     emoji: "\u{1F50E}",
     stock: 63,
+    brand: "Generic",
+    spec: "60W",
+    specs: ["1.2m braided","25,000 flex rated","USB-C to USB-C"],
     featured: false,
     category: "chargers",
   },
@@ -284,6 +369,9 @@ const SEED: SeedProduct[] = [
     image_url: "/products/anker-m80-cable.jpg",
     emoji: "\u{1F50E}",
     stock: 71,
+    brand: "Anker",
+    spec: "60W",
+    specs: ["2m braided","25,000 flex rated","USB-C to USB-C"],
     featured: false,
     category: "chargers",
   },
@@ -299,6 +387,9 @@ const SEED: SeedProduct[] = [
     image_url: "/products/logitech-b100-mouse.jpg",
     emoji: "\u{1F5B1}",
     stock: 55,
+    brand: "Logitech",
+    spec: "1-year battery",
+    specs: ["2.4GHz wireless","One AA","Symmetric shape"],
     featured: false,
     category: "computer-accessories",
   },
@@ -312,6 +403,9 @@ const SEED: SeedProduct[] = [
     image_url: "/products/logitech-m310-mouse.jpg",
     emoji: "\u{1F5B1}",
     stock: 44,
+    brand: "Logitech",
+    spec: "Silent clicks",
+    specs: ["Tilt wheel","One AA","Either hand"],
     featured: false,
     category: "computer-accessories",
   },
@@ -325,6 +419,9 @@ const SEED: SeedProduct[] = [
     image_url: "/products/logitech-m317-mouse.jpg",
     emoji: "\u{1F5B1}",
     stock: 37,
+    brand: "Logitech",
+    spec: "Silent clicks",
+    specs: ["Logi Bolt dongle","One AA","Medium hands"],
     featured: false,
     category: "computer-accessories",
   },
@@ -338,6 +435,9 @@ const SEED: SeedProduct[] = [
     image_url: "/products/corsair-raptor-keyboard.jpg",
     emoji: "\u{2328}",
     stock: 14,
+    brand: "Corsair",
+    spec: "Full size",
+    specs: ["Cherry MX Red","Per-key backlight","Number pad"],
     featured: true,
     category: "computer-accessories",
   },
@@ -351,6 +451,9 @@ const SEED: SeedProduct[] = [
     image_url: "/products/logitech-k120-keyboard.jpg",
     emoji: "\u{2328}",
     stock: 61,
+    brand: "Logitech",
+    spec: "Spill resistant",
+    specs: ["5M keystroke rating","Tilt feet","Laser-etched keys"],
     featured: false,
     category: "computer-accessories",
   },
@@ -364,6 +467,9 @@ const SEED: SeedProduct[] = [
     image_url: "/products/logitech-c920-webcam.jpg",
     emoji: "\u{1F4F7}",
     stock: 19,
+    brand: "Logitech",
+    spec: "1080p",
+    specs: ["30fps","Autofocus","Stereo mic"],
     featured: false,
     category: "computer-accessories",
   },
@@ -377,6 +483,9 @@ const SEED: SeedProduct[] = [
     image_url: "/products/generic-usbc-hub.jpg",
     emoji: "\u{1F50E}",
     stock: 48,
+    brand: "Generic",
+    spec: "USB-C to HDMI",
+    specs: ["4K output","No drivers","No power needed"],
     featured: false,
     category: "computer-accessories",
   },
@@ -392,6 +501,9 @@ const SEED: SeedProduct[] = [
     image_url: "/products/silicone-case-glass-combo.jpg",
     emoji: "\u{1F6F0}",
     stock: 89,
+    brand: "Generic",
+    spec: "9H hardness",
+    specs: ["Raised camera lip","Silicone build","Fits 6in phones"],
     featured: false,
     category: "phone-accessories",
   },
@@ -405,6 +517,9 @@ const SEED: SeedProduct[] = [
     image_url: "/products/folio-case-universal.jpg",
     emoji: "\u{1F4F1}",
     stock: 112,
+    brand: "Generic",
+    spec: "3 card slots",
+    specs: ["Magnetic clasp","Folds flat","Fits 15cm phones"],
     featured: false,
     category: "phone-accessories",
   },
@@ -418,6 +533,9 @@ const SEED: SeedProduct[] = [
     image_url: "/products/wallet-case-blackview.jpg",
     emoji: "\u{1F4F1}",
     stock: 76,
+    brand: "Generic",
+    spec: "4 card slots",
+    specs: ["Fits A60","Strap security","Leather look"],
     featured: false,
     category: "phone-accessories",
   },
@@ -433,6 +551,9 @@ const SEED: SeedProduct[] = [
     image_url: "/products/kingston-128gb-microsd.jpg",
     emoji: "\u{1F5BC}",
     stock: 74,
+    brand: "Kingston",
+    spec: "128GB",
+    specs: ["Class 10","100MB/s read","SD adapter included"],
     featured: false,
     category: "storage",
   },
@@ -446,6 +567,9 @@ const SEED: SeedProduct[] = [
     image_url: "/products/sandisk-extreme-ssd-1tb.jpg",
     emoji: "\u{1F5B6}",
     stock: 11,
+    brand: "SanDisk",
+    spec: "1TB",
+    specs: ["IP55 dust/water","1050MB/s","Carabiner loop"],
     featured: false,
     category: "storage",
   },
@@ -459,6 +583,9 @@ const SEED: SeedProduct[] = [
     image_url: "/products/samsung-t5-ssd-1tb.jpg",
     emoji: "\u{1F5B6}",
     stock: 16,
+    brand: "Samsung",
+    spec: "1TB",
+    specs: ["1050MB/s USB-C","No moving parts","Credit-card sized"],
     featured: false,
     category: "storage",
   },
@@ -472,6 +599,9 @@ const SEED: SeedProduct[] = [
     image_url: "/products/led-desk-lamp.jpg",
     emoji: "\u{1FA91}",
     stock: 30,
+    brand: "Generic",
+    spec: "5 colour temps",
+    specs: ["3 brightness levels","5V USB port","Holds position"],
     featured: false,
     category: "computer-accessories",
   },

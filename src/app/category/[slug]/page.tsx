@@ -103,7 +103,7 @@ export default async function CategoryPage({ params }: { params: Promise<{ slug:
 
         <div className="mt-4 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="flex items-center gap-3 text-3xl font-bold tracking-tight">
+            <h1 className="flex items-center gap-3 text-3xl font-bold tracking-tight sm:text-4xl">
               <span aria-hidden="true">{category.emoji}</span>
               {category.name}
             </h1>
@@ -112,12 +112,22 @@ export default async function CategoryPage({ params }: { params: Promise<{ slug:
 
           <p className="text-sm text-ink-500">
             {products.length} {products.length === 1 ? "item" : "items"}, from{" "}
-            <span className="font-semibold text-ink-900 dark:text-ink-100">{naira}</span>
+            <span className="tabular-nums font-semibold text-ink-900 dark:text-ink-100">
+              {naira}
+            </span>
           </p>
+        </div>
+
+        {/* The comparison basis, restated from the category definition.
+            This is the promise the tile made, kept here where it has to be true. */}
+        <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-card border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-800 dark:border-ink-700 dark:bg-ink-800 dark:text-ink-200">
+          <span className="font-semibold">Compared by {category.comparedBy}</span>
+          <span aria-hidden="true" className="text-brand-300 dark:text-ink-600">·</span>
+          <span>{category.delivery}</span>
         </div>
       </div>
 
-      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {products.map((product) => (
           <ProductCard key={product.id} product={product} />
         ))}
@@ -132,7 +142,7 @@ export default async function CategoryPage({ params }: { params: Promise<{ slug:
             <li key={other.slug}>
               <Link
                 href={`/category/${other.slug}`}
-                className="inline-flex items-center gap-2 rounded-full border border-ink-200 px-3 py-1.5 text-sm hover:border-brand-400 hover:text-brand-700 dark:border-ink-700 dark:hover:border-brand-500"
+                className="inline-flex items-center gap-2 rounded-card border border-ink-200 px-3 py-1.5 text-sm transition-colors hover:border-brand-400 hover:text-brand-700 dark:border-ink-700"
               >
                 <span aria-hidden="true">{other.emoji}</span>
                 {other.name}

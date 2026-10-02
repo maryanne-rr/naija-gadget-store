@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Bricolage_Grotesque, Geist, Geist_Mono } from "next/font/google";
+import { Familjen_Grotesk, Figtree, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
 import { CartProvider } from "@/components/cart/CartProvider";
@@ -8,34 +8,39 @@ import { SiteFooter } from "@/components/SiteFooter";
 import { getSession, authIsConfigured } from "@/lib/auth";
 
 /**
- * Two typefaces, deliberately.
+ * Two typefaces, chosen for a shop that sells objects people compare.
  *
- * Geist handles everything: it is a workhorse, very legible at small sizes, and
- * right for prices, forms and body copy. It is also *invisible* - which is the
- * problem. Nothing about a shop front should be invisible.
+ * Figtree carries the body. It is a rounded, open grotesque - friendly without
+ * being childish, which is the register for a shop that has to look trustworthy
+ * while selling a ₦4,500 cable.
  *
- * Bricolage Grotesque is the display face. Its tight, slightly irregular letter
- * spacing gives the headings some character, and pairing a characterful
- * display font with a neutral body font is the cheapest way to make a storefront
- * look designed rather than defaulted.
+ * Familjen Grotesk is the display face, and it is doing a specific job. It was
+ * drawn for a Swedish maker of measuring equipment, so its letterforms have the
+ * slightly mechanical, confident feel of a spec sheet rather than of a lifestyle
+ * brand. That is right for this catalogue: the customer is comparing numbers -
+ * 20,000mAh against 10,000mAh, 40 hours against 12 - and the typeface says
+ * "these are specifications". Bricolage Grotesque, the previous choice, was
+ * warmer and more editorial, which suits a shop selling a lifestyle and not a
+ * list of specs.
  *
  * Both are self-hosted by next/font at build time, so there is no request to
  * Google from a visitor's browser and no layout shift when they load.
  */
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const body = Figtree({
+  variable: "--font-body",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
 });
 
-const display = Bricolage_Grotesque({
+const display = Familjen_Grotesk({
   variable: "--font-display",
   subsets: ["latin"],
   // Only the weights actually used, so we do not ship four unused files.
-  weight: ["600", "700", "800"],
+  weight: ["600", "700"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const mono = Geist_Mono({
+  variable: "--font-mono",
   subsets: ["latin"],
 });
 
@@ -65,7 +70,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${display.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${body.variable} ${display.variable} ${mono.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col">
         <CartProvider>

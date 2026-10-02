@@ -55,7 +55,7 @@ export async function listProducts(): Promise<Product[]> {
         .order("created_at", { ascending: false });
 
       if (error) throw new Error(error.message);
-      return (data ?? []) as Product[];
+      return normaliseAll(data as Record<string, unknown>[] | null);
     },
     () => [...demoProducts].sort((a, b) => Number(b.featured) - Number(a.featured)),
     "listProducts",
@@ -72,11 +72,45 @@ export async function getProductBySlug(slug: string): Promise<Product | null> {
         .maybeSingle();
 
       if (error) throw new Error(error.message);
-      return (data as Product | null) ?? null;
+      return normalise(data as Record<string, unknown> | null);
     },
     () => demoProducts.find((p) => p.slug === slug) ?? null,
     "getProductBySlug",
   );
+}
+
+/**
+ * Fill in the fields a database row might not have.
+ *
+ * WHY THIS IS NEEDED
+ * `select *` returns whatever columns the table happens to have. A row written
+ * before a column was added has no value for it - absent, not null - and
+ * `row.specs.length` then throws "Cannot read properties of undefined". That is
+ * not hypothetical: adding brand/spec/specs to the catalogue crashed every
+ * product page until the migration was applied, because the query succeeded and
+ * returned rows that simply lacked the new keys.
+ *
+ * Normalising at the boundary rather than guarding at each use is the point.
+ * There are six places a product is rendered, and six `?? []` defaults is six
+ * chances to forget one. The Product type says the field exists; this is what
+ * makes that true.
+ */
+function normalise(row: Record<string, unknown> | null): Product | null {
+  if (!row) return null;
+
+  return {
+    ...(row as unknown as Product),
+    brand: typeof row.brand === "string" ? row.brand : "",
+    spec: typeof row.spec === "string" ? row.spec : "",
+    // Postgres text[] arrives as an array, but a row from before the column
+    // existed gives undefined and a hand-edited row could give a JSON string.
+    specs: Array.isArray(row.specs) ? row.specs.filter((s) => typeof s === "string") : [],
+    category: typeof row.category === "string" ? row.category : null,
+  };
+}
+
+function normaliseAll(rows: Record<string, unknown>[] | null): Product[] {
+  return (rows ?? []).map((row) => normalise(row) as Product);
 }
 
 /**
@@ -102,7 +136,7 @@ export async function listProductsByCategory(categorySlug: string): Promise<Prod
         .order("price", { ascending: true });
 
       if (error) throw new Error(error.message);
-      return (data ?? []) as Product[];
+      return normaliseAll(data as Record<string, unknown>[] | null);
     },
     () =>
       demoProducts
@@ -142,7 +176,7 @@ export async function getProductsByIds(ids: string[]): Promise<Product[]> {
       const { data, error } = await supabase().from("products").select("*").in("id", [...wanted]);
       if (error) throw new Error(error.message);
 
-      const found = (data ?? []) as Product[];
+      const found = normaliseAll(data as Record<string, unknown>[] | null);
       return ids.flatMap((id) => found.filter((p) => p.id === id));
     },
     () => demoProducts.filter((p) => wanted.has(p.id)),

@@ -103,6 +103,9 @@ const rows = demoProducts.map((product) => ({
   stock: product.stock,
   featured: product.featured,
   category: product.category,
+  brand: product.brand,
+  spec: product.spec,
+  specs: product.specs,
 }));
 
 console.log(`\nSeeding ${rows.length} products into ${dim(SUPABASE_URL)}\n`);
@@ -144,7 +147,7 @@ const inserted = JSON.parse(text);
 // ---------------------------------------------------------------------------
 
 const check = await fetch(
-  `${SUPABASE_URL}/rest/v1/products?select=slug,name,price,stock,category&order=category.nullslast,slug`,
+  `${SUPABASE_URL}/rest/v1/products?select=slug,name,price,stock,category,brand,spec&order=category.nullslast,slug`,
   { headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` } },
 );
 const after = await check.json();
@@ -166,7 +169,8 @@ for (const product of after) {
     maximumFractionDigits: 2,
   });
   console.log(
-    `    ${String(product.stock).padStart(3)} in stock   \u20a6${naira.padStart(11)}   ${product.name}`,
+    `    ${(product.spec || "-").padEnd(14)} ${String(product.stock).padStart(3)} in stock   ` +
+      `\u20a6${naira.padStart(11)}   ${product.name}`,
   );
 }
 

@@ -73,6 +73,14 @@ create table if not exists products (
   -- Slug into CATEGORIES in src/lib/catalog.ts, not a foreign key.
   -- See supabase/002-categories.sql for why there is no categories table.
   category    text,
+  -- Manufacturer. In this market a brand name is a trust signal, not decoration.
+  brand       text not null default '',
+  -- The one figure that decides the purchase: "20,000 mAh", "40 hours", "60W".
+  -- A string, not a number, because 20,000mAh and 40 hours are not comparable
+  -- to each other and any single numeric unit would be misleading.
+  spec        text not null default '',
+  -- Secondary figures, shown as chips on the product page.
+  specs       text[] not null default '{}',
   created_at  timestamptz not null default now()
 );
 

@@ -7,13 +7,21 @@ import { AddToCartButton } from "./AddToCartButton";
 /**
  * A product tile.
  *
- * This is a Server Component: it has no "use client", so it renders to HTML on
- * the server and ships zero JavaScript. Only the add-to-cart button below it
- * needs to run in the browser.
+ * A Server Component: no "use client", so it renders to HTML on the server and
+ * ships zero JavaScript. Only the add-to-cart button needs to run in the
+ * browser.
  *
- * Photos come from /public/products and go through next/image, which resizes
- * them and serves modern formats. The emoji is kept as the alt text and as the
- * fallback if a product somehow has no photo.
+ * THE ORDER ON THIS CARD IS THE DESIGN
+ *
+ * spec, then brand, then name, then price. The spec comes first because that is
+ * the decision. Somebody comparing two power banks is comparing 20,000mAh
+ * against 10,000mAh, and the number is short enough to read across a shop
+ * counter on a phone. The name is below it because the name is the tiebreaker,
+ * not the decider - and a long name above a short number pushes the number out
+ * of the first glance entirely.
+ *
+ * The old card led with the name and hid the specification in a sentence of
+ * tagline text, which meant comparing two products meant reading two paragraphs.
  */
 
 export function ProductCard({ product }: { product: Product }) {
@@ -21,10 +29,10 @@ export function ProductCard({ product }: { product: Product }) {
   const lowStock = !soldOut && product.stock <= 5;
 
   return (
-    <article className="group flex h-full flex-col overflow-hidden rounded-card border border-ink-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl hover:shadow-brand-600/10 dark:border-ink-700 dark:bg-ink-800">
+    <article className="group flex h-full flex-col overflow-hidden rounded-card border border-ink-200 bg-white transition-colors hover:border-brand-400 dark:border-ink-700 dark:bg-ink-900">
       <Link
         href={`/products/${product.slug}`}
-        className="relative block aspect-[4/3] overflow-hidden bg-ink-100 dark:bg-ink-700"
+        className="relative block aspect-[4/3] overflow-hidden bg-ink-100 dark:bg-ink-800"
       >
         {product.image_url ? (
           <Image
@@ -33,11 +41,11 @@ export function ProductCard({ product }: { product: Product }) {
             fill
             // Match the container's 4:3 so the grid stays even.
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-            className="object-cover transition duration-500 group-hover:scale-105"
+            className="object-cover transition-transform duration-500 group-hover:scale-105"
           />
         ) : (
           <span
-            className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-brand-50 to-brand-200 text-6xl"
+            className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-brand-50 to-brand-100 text-6xl"
             role="img"
             aria-label={product.name}
           >
@@ -45,39 +53,46 @@ export function ProductCard({ product }: { product: Product }) {
           </span>
         )}
 
-        {/* Badges sit on a scrim so they stay legible over any photo. */}
         {soldOut && (
-          <span className="absolute inset-0 flex items-center justify-center bg-ink-900/60">
+          <span className="absolute inset-0 flex items-center justify-center bg-ink-950/65">
             <span className="bg-white px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-ink-900">
               Sold out
             </span>
           </span>
         )}
+
+        {/* The one amber thing on the card. Amber is rare here on purpose, so
+            "only N left" is the only reason your eye is pulled to the corner. */}
         {!soldOut && lowStock && (
-          <span className="absolute right-3 top-3 rounded-full bg-amber-500 px-2.5 py-1 text-xs font-semibold text-white shadow-sm">
-            Only {product.stock} left
+          <span className="absolute right-0 top-0 rounded-bl-card bg-signal-300 px-2.5 py-1 text-xs font-bold text-ink-950">
+            {product.stock} left
           </span>
         )}
+
         {product.featured && !soldOut && (
-          <span className="absolute left-3 top-3 rounded-full bg-white/95 px-2.5 py-1 text-xs font-semibold text-brand-700 shadow-sm">
-            Featured
+          <span className="absolute left-0 top-0 rounded-br-card bg-brand-600 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-white">
+            Pick of the week
           </span>
         )}
       </Link>
 
-      <div className="flex flex-1 flex-col gap-2 p-4">
-        <div>
-          <h3 className="font-semibold leading-tight text-ink-900 dark:text-ink-50">
-            <Link href={`/products/${product.slug}`} className="hover:text-brand-700">
-              {product.name}
-            </Link>
-          </h3>
-          <p className="mt-1 line-clamp-2 text-sm text-ink-500">{product.tagline}</p>
-        </div>
+      <div className="flex flex-1 flex-col gap-3 p-4">
+        {/* 1. The deciding number. Largest type on the card after the price. */}
+        <p className="spec-figure text-xl">{product.spec}</p>
 
-        <div className="mt-auto flex items-end justify-between pt-2">
-          {/* tabular-nums keeps a column of prices aligned and stops the digits
-              jittering when the quantity changes. */}
+        {/* 2. The brand, small and quiet. A trust signal, not a headline. */}
+        <p className="text-xs font-semibold uppercase tracking-widest text-ink-500">
+          {product.brand}
+        </p>
+
+        {/* 3. The name. Long, so it goes last and wraps to two lines at most. */}
+        <h3 className="text-sm font-semibold leading-snug text-ink-900 dark:text-ink-100">
+          <Link href={`/products/${product.slug}`} className="hover:text-brand-600">
+            {product.name}
+          </Link>
+        </h3>
+
+        <div className="mt-auto flex items-end justify-between gap-3 pt-1">
           <p className="tabular-nums text-lg font-bold text-ink-900 dark:text-ink-50">
             {formatNaira(product.price)}
           </p>

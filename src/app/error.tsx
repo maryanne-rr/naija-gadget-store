@@ -41,13 +41,13 @@ export default function Error({
         <button
           type="button"
           onClick={reset}
-          className="rounded-lg bg-ink-900 px-5 py-2.5 font-semibold text-white hover:bg-brand-700 dark:bg-brand-600 dark:hover:bg-brand-500"
+          className="rounded-card bg-ink-900 px-5 py-2.5 font-semibold text-white hover:bg-brand-700 dark:bg-brand-600 dark:hover:bg-brand-500"
         >
           Try again
         </button>
         <Link
           href="/"
-          className="rounded-lg border border-ink-300 px-5 py-2.5 font-semibold hover:bg-ink-100 dark:border-ink-600 dark:hover:bg-ink-800"
+          className="rounded-card border border-ink-300 px-5 py-2.5 font-semibold hover:bg-ink-100 dark:border-ink-600 dark:hover:bg-ink-800"
         >
           Back to the shop
         </Link>

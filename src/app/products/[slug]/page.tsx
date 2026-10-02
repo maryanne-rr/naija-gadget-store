@@ -71,7 +71,7 @@ export default async function ProductPage({ params }: PageProps<"/products/[slug
       </nav>
 
       <div className="grid gap-8 md:grid-cols-2">
-        <div className="relative aspect-square overflow-hidden rounded-2xl bg-ink-100 dark:bg-ink-700">
+        <div className="relative aspect-square overflow-hidden rounded-card bg-ink-100 dark:bg-ink-800">
           {product.image_url ? (
             <Image
               src={product.image_url}
@@ -83,7 +83,7 @@ export default async function ProductPage({ params }: PageProps<"/products/[slug
             />
           ) : (
             <span
-              className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-brand-50 to-brand-200 text-8xl"
+              className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-brand-50 to-brand-100 text-8xl"
               role="img"
               aria-label={product.name}
             >
@@ -105,27 +105,58 @@ export default async function ProductPage({ params }: PageProps<"/products/[slug
             {category && (
               <Link
                 href={`/category/${category.slug}`}
-                className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-ink-200 px-2.5 py-1 text-xs font-medium text-ink-600 hover:border-brand-400 hover:text-brand-700 dark:border-ink-700 dark:text-ink-300"
+                className="mb-3 inline-flex items-center gap-1.5 rounded-card border border-ink-200 px-2.5 py-1 text-xs font-semibold text-ink-600 transition-colors hover:border-brand-400 hover:text-brand-700 dark:border-ink-700 dark:text-ink-300"
               >
                 <span aria-hidden="true">{category.emoji}</span>
                 {category.name}
+                {/* Naming the basis of comparison on the product page too, so
+                    the promise made on the category tile is kept here. */}
+                <span className="text-ink-400 dark:text-ink-500">
+                  &middot; compared by {category.comparedBy}
+                </span>
               </Link>
             )}
-            <h1 className="text-3xl font-bold tracking-tight">{product.name}</h1>
-            {product.tagline && <p className="mt-1 text-lg text-ink-500">{product.tagline}</p>}
+
+            <p className="text-xs font-semibold uppercase tracking-widest text-ink-500">
+              {product.brand}
+            </p>
+            <h1 className="mt-1 text-3xl font-bold tracking-tight sm:text-4xl">{product.name}</h1>
+            {product.tagline && <p className="mt-2 text-lg text-ink-600 dark:text-ink-400">{product.tagline}</p>}
           </div>
 
-          <p className="text-3xl font-bold">{formatNaira(product.price)}</p>
+          {/* The deciding number, at the size it deserves on its own page.
+              On the card this figure is competing with a photograph, a brand and
+              a price; here it has room to be the thing you look at first. */}
+          <div className="rounded-card border border-ink-200 bg-ink-50 p-5 dark:border-ink-700 dark:bg-ink-800">
+            <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">
+              {category ? `Compared by ${category.comparedBy}` : "Key specification"}
+            </p>
+            <p className="spec-figure mt-1 text-4xl">{product.spec}</p>
+            {product.specs.length > 0 && (
+              <ul className="mt-3 flex flex-wrap gap-2">
+                {product.specs.map((spec) => (
+                  <li
+                    key={spec}
+                    className="rounded-card border border-ink-200 bg-white px-2.5 py-1 text-xs text-ink-700 dark:border-ink-700 dark:bg-ink-900 dark:text-ink-300"
+                  >
+                    {spec}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <p className="tabular-nums text-3xl font-bold">{formatNaira(product.price)}</p>
 
           <p className="text-sm">
             {soldOut ? (
-              <span className="font-semibold text-red-600">Out of stock</span>
+              <span className="font-semibold text-alert-500">Out of stock</span>
             ) : product.stock <= 5 ? (
-              <span className="font-semibold text-amber-600">
+              <span className="font-semibold text-signal-700 dark:text-signal-300">
                 Only {product.stock} left in stock
               </span>
             ) : (
-              <span className="font-semibold text-brand-700">In stock</span>
+              <span className="font-semibold text-good-700 dark:text-good-300">In stock</span>
             )}
           </p>
 
@@ -140,7 +171,7 @@ export default async function ProductPage({ params }: PageProps<"/products/[slug
             />
             <Link
               href="/cart"
-              className="rounded-lg border border-ink-300 px-4 py-2 text-sm font-semibold hover:bg-ink-100 dark:border-ink-600 dark:hover:bg-ink-800"
+              className="rounded-card border border-ink-300 px-4 py-2 text-sm font-semibold transition-colors hover:border-brand-400 dark:border-ink-600"
             >
               View cart
             </Link>
@@ -154,11 +185,24 @@ export default async function ProductPage({ params }: PageProps<"/products/[slug
           </div>
 
           <div className="border-t border-ink-200 pt-6 text-sm text-ink-500 dark:border-ink-700">
-            <h2 className="font-semibold text-ink-700 dark:text-ink-200">Delivery &amp; returns</h2>
-            <ul className="mt-2 list-inside list-disc space-y-1">
-              <li>Delivered nationwide within 2-4 working days</li>
-              <li>Pay by card, bank transfer or USSD</li>
-              <li>7-day returns on unopened items</li>
+            <h2 className="font-semibold text-ink-800 dark:text-ink-200">Delivery &amp; returns</h2>
+            <ul className="mt-2 space-y-1.5">
+              <li className="flex gap-2">
+                <span aria-hidden="true" className="text-brand-500">✓</span>
+                Lagos 1&ndash;2 working days, everywhere else 2&ndash;5
+              </li>
+              <li className="flex gap-2">
+                <span aria-hidden="true" className="text-brand-500">✓</span>
+                Pay by card, bank transfer or USSD
+              </li>
+              <li className="flex gap-2">
+                <span aria-hidden="true" className="text-brand-500">✓</span>
+                7-day returns on unopened items
+              </li>
+              <li className="flex gap-2">
+                <span aria-hidden="true" className="text-brand-500">✓</span>
+                Original {product.brand} stock, not a lookalike
+              </li>
             </ul>
           </div>
         </div>
@@ -168,10 +212,20 @@ export default async function ProductPage({ params }: PageProps<"/products/[slug
           a "related products" strip with one item in it is worse than none. */}
       {related.length > 0 && (
         <section className="border-t border-ink-200 pt-8 dark:border-ink-700">
-          <h2 className="text-xl font-bold tracking-tight">
-            More {category ? `in ${category.name}` : "like this"}
-          </h2>
-          <div className="mt-4 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="flex flex-wrap items-baseline justify-between gap-3">
+            <h2 className="text-2xl font-bold tracking-tight">
+              More {category ? `in ${category.name}` : "like this"}
+            </h2>
+            {category && (
+              // The reason these are the ones shown: they are the ones being
+              // compared. Saying so is more use than a generic "you may also
+              // like", which is what a recommender nobody configured produces.
+              <p className="text-sm text-ink-500">
+                Cheapest first, all compared by {category.comparedBy}
+              </p>
+            )}
+          </div>
+          <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {related.map((item) => (
               <ProductCard key={item.id} product={item} />
             ))}

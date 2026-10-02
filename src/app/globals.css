@@ -5,46 +5,96 @@
 
    Tailwind v4 reads @theme to generate utilities. Anything declared with
    --color-* here becomes a `bg-*` / `text-*` / `border-*` class automatically,
-   so `bg-brand` works without writing a single @apply.
+   so `bg-ink` works without writing a single @apply.
+
+   THE PALETTE IS INDIGO, NOT EMERALD
+   The shop was originally emerald (#059669) which was a default choice rather
+   than a decision - green reads as fintech, eco and "verified" before you have
+   read a word. These are the six shades of a single indigo hue plus one amber
+   for emphasis, which keeps the whole page looking like one decision:
+
+     --color-ink-*     near-black indigo, the text and the darkest surfaces
+     --color-brand-*   the indigo itself, for links, buttons and accents
+     --color-wash-*    the pale indigo tints used behind panels
+     --color-signal-*  amber, used sparingly so it actually means something
+
+   The dark-mode values are not a filter over the light ones. Indigo that is
+   legible on white goes muddy on near-black, so the dark ramp is re-picked
+   lighter at the same hue.
    ======================================================================== */
 
 @theme {
-  --color-brand-50: #ecfdf5;
-  --color-brand-100: #d1fae5;
-  --color-brand-200: #a7f3d0;
-  --color-brand-300: #6ee7b7;
-  --color-brand-400: #34d399;
-  --color-brand-500: #10b981;
-  --color-brand-600: #059669;
-  --color-brand-700: #047857;
+  /* Ink: text and the deepest surfaces. Slight blue cast, never pure grey -
+     a neutral grey next to an indigo button makes the grey look dirty. */
+  --color-ink-50: #f4f5fb;
+  --color-ink-100: #e8eaf6;
+  --color-ink-200: #d2d5ff;
+  --color-ink-300: #b9bdd6;
+  --color-ink-400: #8f95ff;
+  --color-ink-500: #6b71b8;
+  --color-ink-600: #555874;
+  --color-ink-700: #3a3c5c;
+  --color-ink-800: #262a6b;
+  --color-ink-900: #14163a;
+  --color-ink-950: #0e1030;
 
-  --color-ink-50: #f8fafc;
-  --color-ink-100: #f1f5f9;
-  --color-ink-200: #e2e8f0;
-  --color-ink-300: #cbd5e1;
-  --color-ink-400: #94a3b8;
-  --color-ink-500: #64748b;
-  --color-ink-600: #475569;
-  --color-ink-700: #334155;
-  --color-ink-800: #1e293b;
-  --color-ink-900: #0f172a;
+  /* Brand: the indigo accent. 600 is the interactive default. */
+  --color-brand-50: #f4f5fb;
+  --color-brand-100: #e3e6ff;
+  --color-brand-200: #d2d5ff;
+  --color-brand-300: #b4b8ff;
+  --color-brand-400: #8f95ff;
+  --color-brand-500: #5b61d6;
+  --color-brand-600: #2e33a6;
+  --color-brand-700: #242886;
+  --color-brand-800: #1d2070;
+  --color-brand-900: #161942;
 
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-display), var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  /* Signal: amber, for the one thing on a page that must be noticed. Used on
+     "only N left" and the featured marker. Deliberately rare - an accent used
+     everywhere is an accent used nowhere. */
+  --color-signal-50: #fff8ec;
+  --color-signal-100: #ffeccb;
+  --color-signal-300: #f5b83d;
+  --color-signal-500: #d18f00;
+  --color-signal-700: #8a5a00;
 
-  --radius-card: 1rem;
+  /* Good: in-stock. Green is fine here, because it is answering a factual
+     question about inventory rather than branding anything. */
+  --color-good-100: #d6f7e2;
+  --color-good-300: #6fd49a;
+  --color-good-700: #1a7a45;
+
+  /* Alert: out of stock and validation errors. */
+  --color-alert-50: #fdecec;
+  --color-alert-500: #c0392f;
+  --color-alert-700: #8f2820;
+
+  --font-sans: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-display), var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-mono), ui-monospace, monospace;
+
+  /*
+   * Corners are small on purpose.
+   *
+   * The previous design used 16px cards, which is the Tailwind default look and
+   * is why the shop read as a template. 6px says "a physical object with an
+   * edge", which is what a power bank is. The 14px is for the one large hero
+   * panel, not for cards.
+   */
+  --radius-card: 6px;
+  --radius-panel: 14px;
 }
 
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  --background: #f4f5fb;
+  --foreground: #14163a;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0b1120;
-    --foreground: #e2e8f0;
+    --background: #0e1030;
+    --foreground: #e3e6ff;
   }
 }
 
@@ -58,26 +108,26 @@ body {
 /* ---------------------------------------------------------------------------
    Display type.
 
-   Applied to headings and prices only. Tailwind's `font-display` utility maps
-   to --font-display, which globals.css points at the Bricolage variable set
-   in layout.tsx.
+   Familjen Grotesk is drawn with generous, slightly quirky letterforms, so the
+   tracking is tightened more than the -0.02em an average grotesk would need.
+   At 42px that extra tightening is the difference between "designed" and
+   "someone chose a Google font".
 
-   The negative tracking matters: Bricolage is drawn tight by default, and
-   -0.02em is what stops large headings looking cramped next to the loose
-   default. Prices get it too - tabular figures keep a column of naira amounts
-   aligned.
+   Prices use the same face with tabular figures, so a column of naira amounts
+   lines up and the digits do not jitter when the quantity changes.
    ------------------------------------------------------------------------- */
 
 h1,
 h2,
 h3 {
   font-family: var(--font-display);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.028em;
+  font-weight: 700;
 }
 
 .font-display {
   font-family: var(--font-display);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.028em;
 }
 
 /* Money, quantities and anything that should line up in a column. */
@@ -85,6 +135,29 @@ h3 {
   font-variant-numeric: tabular-nums;
   font-family: var(--font-display);
   letter-spacing: -0.01em;
+}
+
+/*
+ * The specification figure on a product card.
+ *
+ * This is the one piece of typography that is not decoration. A customer
+ * comparing two power banks is comparing two numbers, so the number is set in
+ * the display face at a size that can be read at a glance across a shop
+ * counter on a phone held at arm's length - not the product name, which is
+ * longer and less useful for the decision.
+ */
+.spec-figure {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  font-weight: 700;
+  color: var(--color-ink-900);
+}
+
+@media (prefers-color-scheme: dark) {
+  .spec-figure {
+    color: var(--color-ink-50);
+  }
 }
 
 /* Respect the OS "reduce motion" setting. Animations are decoration here, so
@@ -101,6 +174,6 @@ h3 {
 /* A visible focus ring, for keyboard users. Tailwind removes these by default
    in some resets; putting it back is cheap and matters for accessibility. */
 :focus-visible {
-  outline: 2px solid var(--color-brand-600);
+  outline: 2px solid var(--color-brand-500);
   outline-offset: 2px;
 }
