@@ -18,14 +18,57 @@ import { integrations } from "@/lib/env";
  */
 
 /**
- * The argument the banner makes. It is about the shop, not about one product,
- * which is the correction to a hero that led with a power bank and made the
- * whole storefront read as a power bank shop.
+ * The reassurance block.
+ *
+ * WHAT THE PREVIOUS COPY GOT WRONG
+ * It read: "Every listing shows the number that matters - capacity, wattage,
+ * hours - so you can compare two before you commit." That is the shop
+ * explaining its own design decisions to the customer. Nobody buys a power bank
+ * because a stranger on the internet told them they had good typography, and a
+ * page that argues for itself reads as a template.
+ *
+ * It also answered the wrong question. Asked whether a stranger's gadget shop is
+ * worth the risk of a card payment and a three-day wait, a shopper wants to know
+ * three things, in this order:
+ *
+ *   1. is this the real thing, or a lookalike with a similar logo
+ *   2. will it actually arrive, and when
+ *   3. and if it is wrong, can I send it back
+ *
+ * Counterfeit chargers and earbuds are endemic in this market, so (1) is not a
+ * nicety - it is the whole reason to buy from a named shop rather than a
+ * marketplace listing. And (3) was missing from the old block altogether, which
+ * is the one people are most anxious about.
+ *
+ * So the headline states the guarantee, the body gives the specifics, and the
+ * three columns are the proof. The specification figures do not need defending:
+ * they are on every card, and a visitor can see for themselves.
  */
-const HERO = {
-  headline: "Full battery through the go-slow.",
-  body: "Power banks, chargers, earbuds, mice and keyboards in naira. Every listing shows the number that matters - capacity, wattage, hours - so you can compare two before you commit.",
+const REASSURANCE = {
+  headline: "Buy the real thing.",
+  body: "Counterfeit chargers and earbuds are everywhere, and a cheap one that arrives is worse than an expensive one that does not. Everything here is original stock, and the price on the card is the price on your bill.",
 };
+
+/**
+ * The three answers, in the order a nervous shopper asks them.
+ *
+ * Payment method is deliberately absent: it is already in the announcement bar
+ * and the footer, and it is a smaller concern than whether the goods are real.
+ */
+const PROMISES = [
+  {
+    heading: "Original stock",
+    body: "JBL, Anker, Oraimo, Logitech. Not lookalikes.",
+  },
+  {
+    heading: "Lagos 1–2 days",
+    body: "All 36 states and the FCT, 2–5 working days elsewhere.",
+  },
+  {
+    heading: "7-day returns",
+    body: "Unopened and not right? Send it back.",
+  },
+];
 
 export default async function HomePage() {
   // Render per request rather than prerendering at build time. Stock levels
@@ -101,42 +144,37 @@ export default async function HomePage() {
           headline is supporting copy for it. */}
       <DealCarousel slides={slides} />
 
-      {/* ---- The argument, as three checkable promises ----
-          "Lagos 1-2 days" and "original brands" are both verifiable, which is
-          why they are here rather than "fast shipping" and "quality you can
-          trust". A gadget shop competing on trust has to be specific. */}
-      <section className="grid gap-6 rounded-panel border border-ink-200 bg-white p-6 lg:grid-cols-2 lg:p-8 dark:border-ink-700 dark:bg-ink-900">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">{HERO.headline}</h2>
-          <p className="mt-3 leading-relaxed text-ink-600 dark:text-ink-300">{HERO.body}</p>
-        </div>
+      {/* ---- Reassurance ----
+          Three answers to three fears, in the order they are asked. The
+          headings are the answers, not adjectives: "7-day returns" settles a
+          question, "quality guaranteed" starts one. */}
+      <section className="rounded-panel border border-ink-200 bg-white p-6 lg:p-8 dark:border-ink-700 dark:bg-ink-900">
+        <div className="grid gap-6 lg:grid-cols-[1.1fr_1.4fr] lg:gap-10">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
+              {REASSURANCE.headline}
+            </h2>
+            <p className="mt-3 leading-relaxed text-ink-600 dark:text-ink-300">
+              {REASSURANCE.body}
+            </p>
+          </div>
 
-        <dl className="grid gap-4 sm:grid-cols-3 lg:border-l lg:border-ink-200 lg:pl-6 dark:lg:border-ink-700">
-          <div>
-            <dt className="text-xs font-semibold uppercase tracking-wide text-ink-500">
-              All 36 states + FCT
-            </dt>
-            <dd className="mt-1 text-sm text-ink-700 dark:text-ink-300">
-              Lagos 1&ndash;2 days, elsewhere 2&ndash;5
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs font-semibold uppercase tracking-wide text-ink-500">
-              Original brands
-            </dt>
-            <dd className="mt-1 text-sm text-ink-700 dark:text-ink-300">
-              JBL, Anker, Oraimo, Logitech
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs font-semibold uppercase tracking-wide text-ink-500">
-              Pay how you like
-            </dt>
-            <dd className="mt-1 text-sm text-ink-700 dark:text-ink-300">
-              Card, bank transfer or USSD
-            </dd>
-          </div>
-        </dl>
+          <dl className="grid gap-5 sm:grid-cols-3 lg:border-l lg:border-ink-200 lg:pl-8 dark:lg:border-ink-700">
+            {PROMISES.map((promise) => (
+              <div key={promise.heading}>
+                <dt className="flex items-start gap-1.5 font-bold">
+                  <span aria-hidden="true" className="text-good-700 dark:text-good-300">
+                    ✓
+                  </span>
+                  {promise.heading}
+                </dt>
+                <dd className="mt-1 pl-4 text-sm text-ink-600 dark:text-ink-400">
+                  {promise.body}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </div>
       </section>
 
       {/* ---- Categories ---- */}
