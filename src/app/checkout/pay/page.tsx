@@ -118,10 +118,6 @@ export default async function PayPage({ searchParams }: PageProps<"/checkout/pay
 
       <PayButton reference={order.reference} amount={order.amount} />
 
-      <p className="mt-4 text-center text-xs text-ink-400">
-        No card details are collected and no money moves. Pressing Pay marks the order as paid.
-      </p>
-
       <p className="mt-3 text-center text-xs">
         <Link href="/cart" className="text-ink-500 underline">
           Cancel and go back

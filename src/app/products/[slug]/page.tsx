@@ -42,6 +42,10 @@ export default async function ProductPage({ params }: PageProps<"/products/[slug
   // Null unless there is a genuine saving, so nothing ever renders "Save 0%".
   const percent = discountPercent(product.price, product.compare_at_price);
 
+  // Audio has no headline figure - battery hours are not what decides a pair of
+  // headphones - so the specification block is skipped rather than left blank.
+  const hasSpec = product.spec.trim().length > 0;
+
   // The category this product sits in, if it has one. Products seeded before
   // categories existed have null, so this has to cope with that.
   const category = product.category ? getCategory(product.category) : undefined;
@@ -128,26 +132,34 @@ export default async function ProductPage({ params }: PageProps<"/products/[slug
           </div>
 
           {/* The deciding number, at the size it deserves on its own page.
-              On the card this figure is competing with a photograph, a brand and
-              a price; here it has room to be the thing you look at first. */}
-          <div className="rounded-card border border-ink-200 bg-ink-50 p-5 dark:border-ink-700 dark:bg-ink-800">
-            <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">
-              {category ? `Compared by ${category.comparedBy}` : "Key specification"}
-            </p>
-            <p className="spec-figure mt-1 text-4xl">{product.spec}</p>
-            {product.specs.length > 0 && (
-              <ul className="mt-3 flex flex-wrap gap-2">
-                {product.specs.map((spec) => (
-                  <li
-                    key={spec}
-                    className="rounded-card border border-ink-200 bg-white px-2.5 py-1 text-xs text-ink-700 dark:border-ink-700 dark:bg-ink-900 dark:text-ink-300"
-                  >
-                    {spec}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+              Omitted when the product has none - all of audio does, because
+              there is no single figure that tells you whether to buy a pair of
+              headphones. The chips below carry the detail instead. */}
+          {(hasSpec || product.specs.length > 0) && (
+            <div className="rounded-card border border-ink-200 bg-ink-50 p-5 dark:border-ink-700 dark:bg-ink-800">
+              {hasSpec && (
+                <>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">
+                    {category ? `Compared by ${category.comparedBy}` : "Key specification"}
+                  </p>
+                  <p className="spec-figure mt-1 text-4xl">{product.spec}</p>
+                </>
+              )}
+
+              {product.specs.length > 0 && (
+                <ul className={hasSpec ? "mt-3 flex flex-wrap gap-2" : "flex flex-wrap gap-2"}>
+                  {product.specs.map((spec) => (
+                    <li
+                      key={spec}
+                      className="rounded-card border border-ink-200 bg-white px-2.5 py-1 text-xs text-ink-700 dark:border-ink-700 dark:bg-ink-900 dark:text-ink-300"
+                    >
+                      {spec}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
 
           {/* Price. The struck-through figure is display only and never reaches
               the cart or the order - the amount charged is always `price`. */}

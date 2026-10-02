@@ -107,22 +107,34 @@ for (const product of demoProducts) {
 // ---------------------------------------------------------------------------
 // 5b. The specification fields are filled in.
 //
-// These three are not decoration: the product card leads with `spec`, so an
-// empty one renders a blank line at the top of the tile where the deciding
-// number should be, and a card whose number is missing looks broken rather than
-// sparse. Checking here means the failure is a command that exits non-zero
-// instead of a shop front nobody notices is wrong.
+// `spec` is now optional: audio has none, because there is no single figure that
+// decides a pair of headphones, and the card skips the line rather than showing
+// a blank. But a product with neither a spec nor any chips has nothing to say,
+// so at least one of the two must be present.
+//
+// `specs` is not optional - it is what the product page shows in place of the
+// headline figure, so an audio product with no chips would have a specification
+// block containing nothing.
 // ---------------------------------------------------------------------------
 for (const product of demoProducts) {
   if (!product.brand) problems.push(`${product.slug} has no brand`);
-  if (!product.spec) problems.push(`${product.slug} has no spec - the card would lead with a blank line`);
-  if (!Array.isArray(product.specs) || product.specs.length === 0) {
+
+  const hasSpec = product.spec.trim().length > 0;
+  const hasChips = Array.isArray(product.specs) && product.specs.length > 0;
+
+  if (!hasSpec && !hasChips) {
+    problems.push(`${product.slug} has neither a spec nor any secondary specs`);
+  }
+  if (!Array.isArray(product.specs)) {
+    problems.push(`${product.slug} specs is not an array`);
+  } else if (product.specs.length === 0) {
     problems.push(`${product.slug} has no secondary specs`);
   }
 }
 
-// The spec must be short. It is set at 24px on a card that is about 300px wide;
-// anything longer wraps to three lines and pushes the price off the bottom.
+// A spec must be short. It is set at display size on a card that is about 300px
+// wide; anything longer wraps to three lines and pushes the price off the
+// bottom. Empty is allowed - that just means the product has no headline figure.
 for (const product of demoProducts) {
   if (product.spec && product.spec.length > 16) {
     problems.push(

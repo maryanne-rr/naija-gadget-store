@@ -11,17 +11,24 @@ import { AddToCartButton } from "./AddToCartButton";
  * ships zero JavaScript. Only the add-to-cart button needs to run in the
  * browser.
  *
- * THE ORDER ON THIS CARD IS THE DESIGN
+ * WHAT LEADS THE CARD
  *
- * spec, then brand, then name, then price. The spec comes first because that is
- * the decision. Somebody comparing two power banks is comparing 20,000mAh
- * against 10,000mAh, and the number is short enough to read across a shop
- * counter on a phone. The name is below it because the name is the tiebreaker,
- * not the decider - and a long name above a short number pushes the number out
- * of the first glance entirely.
+ * The product name, in the display face at headline weight, with the
+ * specification underneath in the smaller supporting style.
  *
- * The old card led with the name and hid the specification in a sentence of
- * tagline text, which meant comparing two products meant reading two paragraphs.
+ * This was the other way round, and the spec-led version was argued for on the
+ * grounds that people compare numbers rather than names. The argument was not
+ * wrong so much as misplaced: the specification is what decides between two
+ * similar products, but the name is what tells you whether you are looking at the
+ * right product at all. Leading with "20,000 mAh" over a grid of otherwise
+ * identical figures made the cards hard to tell apart, and it made the audio
+ * category worse rather than better - four products all reading "40 hours",
+ * "12 hours", "6 hours", as though battery life were the only thing there is to
+ * know about a pair of headphones.
+ *
+ * So the figure is support, not the headline. Audio has none, which is honest:
+ * there is no single number that tells you whether to buy headphones, and the
+ * detail belongs on the product page where there is room for it.
  */
 
 export function ProductCard({ product }: { product: Product }) {
@@ -32,6 +39,10 @@ export function ProductCard({ product }: { product: Product }) {
   // badge are never rendered as "0% off" - a badge that reads zero teaches
   // shoppers to ignore badges.
   const percent = discountPercent(product.price, product.compare_at_price);
+
+  // Products with no headline figure (all of audio) skip the line rather than
+  // leaving a gap above the price.
+  const hasSpec = product.spec.trim().length > 0;
 
   return (
     <article className="group flex h-full flex-col overflow-hidden rounded-card border border-ink-200 bg-white transition-colors hover:border-brand-400 dark:border-ink-700 dark:bg-ink-900">
@@ -81,21 +92,27 @@ export function ProductCard({ product }: { product: Product }) {
         )}
       </Link>
 
-      <div className="flex flex-1 flex-col gap-3 p-4">
-        {/* 1. The deciding number. Largest type on the card after the price. */}
-        <p className="spec-figure text-xl">{product.spec}</p>
+      <div className="flex flex-1 flex-col gap-2 p-4">
+        {/* 1. The name. The headline: biggest type on the card, and the only
+            thing that tells you whether you are looking at the right product. */}
+        <h3 className="font-display text-lg font-bold leading-tight tracking-tight text-ink-900 dark:text-ink-50">
+          <Link href={`/products/${product.slug}`} className="hover:text-brand-600">
+            {product.name}
+          </Link>
+        </h3>
 
         {/* 2. The brand, small and quiet. A trust signal, not a headline. */}
         <p className="text-xs font-semibold uppercase tracking-widest text-ink-500">
           {product.brand}
         </p>
 
-        {/* 3. The name. Long, so it goes last and wraps to two lines at most. */}
-        <h3 className="text-sm font-semibold leading-snug text-ink-900 dark:text-ink-100">
-          <Link href={`/products/${product.slug}`} className="hover:text-brand-600">
-            {product.name}
-          </Link>
-        </h3>
+        {/* 3. The specification, as support. Omitted where there is no single
+            figure worth leading with, which is currently all of audio. */}
+        {hasSpec && (
+          <p className="text-sm font-medium text-ink-600 dark:text-ink-400">
+            {product.spec}
+          </p>
+        )}
 
         <div className="mt-auto flex items-end justify-between gap-3 pt-1">
           <p className="leading-tight">

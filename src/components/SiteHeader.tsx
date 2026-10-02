@@ -56,9 +56,27 @@ export function SiteHeader({ user, authReady }: { user: HeaderUser | null; authR
         </div>
       </div>
 
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4">
-        <Link href="/" className="font-display text-lg font-bold tracking-tight">
-          Naija Gadgets
+      {/* h-20 rather than h-16: the wordmark is now two lines, name over
+          tagline, and a 64px bar clips the second one. The bar is a fixed height
+          rather than py-* so the sticky header does not change height when the
+          session loads and the sign-in button becomes a sign-out button. */}
+      <div className="mx-auto flex h-20 max-w-6xl items-center justify-between gap-4 px-4">
+        {/* No flag emoji. U+1F1F3 U+1F1EC is two regional indicators rather than
+            a character, so it draws a flag on macOS and Android and "NG" in a
+            box on Windows - a broken-looking letter in the shop's own wordmark.
+            Plain text renders identically everywhere.
+
+            The tagline sits under the name rather than beside it: a header is
+            one row tall, so name-plus-tagline has to stack, and the name is set
+            at display size so it reads as a shop's name rather than a menu
+            item - which is what it is. */}
+        <Link href="/" className="group leading-none">
+          <span className="block font-display text-2xl font-bold tracking-tight">
+            Naija Gadgets
+          </span>
+          <span className="mt-1 block text-[11px] italic text-ink-500 transition-colors group-hover:text-brand-600 dark:text-ink-400 dark:group-hover:text-brand-300">
+            …a home for quality gadgets
+          </span>
         </Link>
 
         <nav className="flex items-center gap-1 sm:gap-2">
