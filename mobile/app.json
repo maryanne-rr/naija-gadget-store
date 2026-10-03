@@ -25,6 +25,14 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "plugins": ["expo-secure-store"]
+    "plugins": [
+      "expo-secure-store"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "3bc09258-4017-49ba-893b-4b1df582ef94"
+      }
+    },
+    "owner": "mimi-rr"
   }
 }
