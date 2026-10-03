@@ -149,7 +149,7 @@ function groupIntoSections(products: Product[]) {
   const sections: { title: string; data: Product[] }[] = [];
 
   if (featured.length > 0) {
-    sections.push({ title: "Reduced", data: featured });
+    sections.push({ title: "Deals", data: featured });
   }
 
   for (const category of CATEGORY_ORDER) {
@@ -173,7 +173,7 @@ function groupIntoSections(products: Product[]) {
 }
 
 /**
- * Which products lead, and why the section is called "Reduced".
+ * Which products lead, and why the section is called "Deals".
  *
  * /api/products does not send the `featured` column, because nothing needs it on
  * the phone. Rather than widen the payload for one flag, a product that is
@@ -181,11 +181,15 @@ function groupIntoSections(products: Product[]) {
  * is a reason to look at something, whereas "featured" means only whatever the
  * seeder said.
  *
- * Which is also why the heading says Reduced and not Featured: eight of the
- * twenty-eight products are on offer, so the label has to describe what is
- * actually in the section. It matches the wording the schema already insists on -
- * "reduced" and "deal of the day" are different claims, and this is the first.
- * The rotation itself is the website's carousel, one product a day.
+ * So the heading has to describe what is actually in it: eight of the
+ * twenty-eight products carry a discount, each showing a struck was-price and a
+ * "Save N%" badge. "Deals" says that in a word a shopper already understands.
+ *
+ * It is deliberately NOT "Deal of the day", which is a near-miss. That is a
+ * different claim - one product, chosen by the date - and it belongs to the
+ * website's carousel. Calling eight products the deal of the day makes seven of
+ * them a false promise, which is the same reason products.deal is a column
+ * separate from compare_at_price in the first place.
  */
 function isFeatured(product: Product): boolean {
   return product.deal;
