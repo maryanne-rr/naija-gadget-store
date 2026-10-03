@@ -3,12 +3,15 @@ import {
   ActivityIndicator,
   AppState,
   Pressable,
-  SafeAreaView,
   StatusBar,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import {
+  SafeAreaProvider,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { fetchCart, type Cart } from "./src/api";
 import { CART_POLL_MS } from "./src/config";
 import { clearSession, readEmail, readToken } from "./src/storage";
@@ -46,6 +49,18 @@ import { CartScreen } from "./src/screens/CartScreen";
  * waking the radio every five seconds.
  */
 export default function App() {
+  // The provider has to sit above the component that measures. SafeAreaProvider
+  // is what turns the notch, the status bar and the home indicator into numbers
+  // the layout can use - without it there is nothing to measure, and hard-coded
+  // padding is wrong on every phone except the one it was guessed on.
+  return (
+    <SafeAreaProvider>
+      <Shop />
+    </SafeAreaProvider>
+  );
+}
+
+function Shop() {
   const [token, setToken] = useState<string | null>(null);
   const [email, setEmail] = useState<string | null>(null);
   const [booting, setBooting] = useState(true);
@@ -56,6 +71,15 @@ export default function App() {
   // Same reason as in SignInScreen: the polling effect reads this, and putting it
   // in state would restart the interval on every render.
   const tokenRef = useRef<string | null>(null);
+
+  // Measured, not hard-coded. A phone with a notch and a phone without one need
+  // different top padding, and a fixed number is wrong on both - which is what
+  // put the wordmark under the clock in the first screenshot.
+  //
+  // Above the early return below, deliberately: a hook called after one is a
+  // conditional hook, React notices when the boot flag flips from true to false,
+  // and the count of hooks has changed between renders.
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     tokenRef.current = token;
@@ -129,7 +153,7 @@ export default function App() {
     return (
       <>
         <StatusBar barStyle="dark-content" backgroundColor={theme.canvas} />
-        <SafeAreaView style={styles.fill}>
+        <View style={[styles.fill, { paddingTop: insets.top + 12 }]}>
           {/* The token comes back from pairing rather than being read out of
               SecureStore again. Reading it happens once, at launch, so wiring
               this to a refresh left a freshly approved phone sitting on the
@@ -140,7 +164,7 @@ export default function App() {
               void refreshCart();
             }}
           />
-        </SafeAreaView>
+        </View>
       </>
     );
   }
@@ -153,8 +177,8 @@ export default function App() {
   return (
     <>
       <StatusBar barStyle="light-content" backgroundColor={theme.ink} />
-      <SafeAreaView style={styles.fill}>
-        <View style={styles.header}>
+      <View style={styles.fill}>
+        <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
           <View style={styles.headerText}>
             <Text style={styles.wordmark}>Naija Gadgets</Text>
             {email ? (
@@ -164,7 +188,16 @@ export default function App() {
             ) : null}
           </View>
 
-          <Pressable onPress={() => void signOut()} accessibilityRole="button">
+          {/* The extra right padding is not decoration. Expo Go floats a
+              development button in the top-right corner, and it sits directly on
+              top of Sign out - so in a demo the control you need is under the one
+              you do not. Leaving room costs nothing in a build and makes the
+              development build usable. */}
+          <Pressable
+            onPress={() => void signOut()}
+            style={styles.signOutButton}
+            accessibilityRole="button"
+          >
             <Text style={styles.signOut}>Sign out</Text>
           </Pressable>
         </View>
@@ -182,7 +215,8 @@ export default function App() {
           )}
         </View>
 
-        <View style={styles.tabBar}>
+        {/* Bottom inset so the tab bar clears the home indicator. */}
+        <View style={[styles.tabBar, { paddingBottom: Math.max(insets.bottom, 10) }]}>
           <Tab label="Shop" active={tab === "shop"} onPress={() => setTab("shop")} />
           <Tab
             label={cart.count > 0 ? `Cart (${cart.count})` : "Cart"}
@@ -190,7 +224,7 @@ export default function App() {
             onPress={() => setTab("cart")}
           />
         </View>
-      </SafeAreaView>
+      </View>
     </>
   );
 }
@@ -223,11 +257,13 @@ const styles = StyleSheet.create({
 
   header: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     justifyContent: "space-between",
     backgroundColor: theme.ink,
-    paddingHorizontal: 16,
-    paddingTop: 18,
+    paddingLeft: 16,
+    // Room on the right for Expo Go's floating development button, which
+    // otherwise sits on top of Sign out and makes it untappable.
+    paddingRight: 60,
     paddingBottom: 14,
     gap: 10,
   },
@@ -235,16 +271,14 @@ const styles = StyleSheet.create({
   // the edge on a narrow phone. The email is allowed to shrink and ellipsize for
   // the same reason - a long address must not steal the button's space.
   headerText: { flex: 1, minWidth: 0 },
-  wordmark: { fontSize: 18, fontWeight: "800", color: theme.white, letterSpacing: -0.3 },
+  wordmark: { fontSize: 19, fontWeight: "800", color: theme.white, letterSpacing: -0.3 },
   email: { fontSize: 11, color: "#a9adc8", marginTop: 1 },
+  signOutButton: { paddingVertical: 8, paddingLeft: 10 },
   signOut: {
     color: "#c9cdf0",
     fontSize: 13,
+    fontWeight: "600",
     textDecorationLine: "underline",
-    // Keeps the tap target a reasonable size without the label being big enough
-    // to dominate the header.
-    paddingVertical: 4,
-    paddingLeft: 8,
   },
 
   tabBar: {
