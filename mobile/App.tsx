@@ -223,17 +223,29 @@ const styles = StyleSheet.create({
 
   header: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     justifyContent: "space-between",
     backgroundColor: theme.ink,
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    gap: 12,
+    paddingHorizontal: 16,
+    paddingTop: 18,
+    paddingBottom: 14,
+    gap: 10,
   },
-  headerText: { flex: 1 },
-  wordmark: { fontSize: 20, fontWeight: "800", color: theme.white, letterSpacing: -0.3 },
-  email: { fontSize: 12, color: "#a9adc8", marginTop: 1 },
-  signOut: { color: "#c9cdf0", fontSize: 13, textDecorationLine: "underline" },
+  // flex: 1 on the text block is what stops the wordmark pushing "Sign out" off
+  // the edge on a narrow phone. The email is allowed to shrink and ellipsize for
+  // the same reason - a long address must not steal the button's space.
+  headerText: { flex: 1, minWidth: 0 },
+  wordmark: { fontSize: 18, fontWeight: "800", color: theme.white, letterSpacing: -0.3 },
+  email: { fontSize: 11, color: "#a9adc8", marginTop: 1 },
+  signOut: {
+    color: "#c9cdf0",
+    fontSize: 13,
+    textDecorationLine: "underline",
+    // Keeps the tap target a reasonable size without the label being big enough
+    // to dominate the header.
+    paddingVertical: 4,
+    paddingLeft: 8,
+  },
 
   tabBar: {
     flexDirection: "row",
