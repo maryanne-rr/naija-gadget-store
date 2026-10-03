@@ -11,7 +11,7 @@ import {
 import * as Clipboard from "expo-clipboard";
 import { createPairing, pollPairing, type PollResult } from "../api";
 import { PAIR_POLL_MS } from "../config";
-import { readOrCreateClaimSecret } from "../storage";
+import { readOrCreateClaimSecret, saveSession } from "../storage";
 import { theme } from "../theme";
 
 /**
@@ -44,12 +44,20 @@ import { theme } from "../theme";
  * it. It only names the pairing. The right to collect the session belongs to the
  * secret this device generated and never sent - see src/storage.ts.
  */
-export function SignInScreen({ onSignedIn }: { onSignedIn: () => void }) {
+/**
+ * Hands the new token back so the app can switch to the shop without a restart.
+ *
+ * It has to be handed over rather than left in SecureStore. Reading the token back
+ * only happens once, at launch, so relying on that would mean the person has to
+ * kill and reopen the app after every sign-in - which looks exactly like the
+ * pairing failed.
+ */
+export function SignInScreen({ onSignedIn }: { onSignedIn: (token: string) => void }) {
   const [code, setCode] = useState<string | null>(null);
   const [pairUrl, setPairUrl] = useState<string | null>(null);
-  const [status, setStatus] = useState<"starting" | "waiting" | "denied" | "expired" | "error">(
-    "starting",
-  );
+  const [status, setStatus] = useState<
+    "starting" | "waiting" | "connected" | "denied" | "expired" | "error"
+  >("starting");
   const [error, setError] = useState("");
 
   // Held in a ref rather than state because the polling loop reads it but must not
@@ -100,10 +108,17 @@ export function SignInScreen({ onSignedIn }: { onSignedIn: () => void }) {
         if (cancelled) return;
 
         if (result.status === "ready") {
-          const { saveSession } = await import("../storage");
+          // Persist first, then tell the app. If the process dies between the two,
+          // the token is still on disk and the next launch signs in - the reverse
+          // order would leave a signed-in device that forgets on restart.
           await saveSession(result.token, result.user.email);
-          setStatus("expired"); // stops this effect; onSignedIn swaps the screen
-          onSignedIn();
+
+          // "connected" rather than "expired", which is what this used to set.
+          // Reusing an existing status to halt the loop also renders that status,
+          // so approving a device told the person it had expired - while the
+          // browser they approved it in said it had worked.
+          setStatus("connected");
+          onSignedIn(result.token);
           return;
         }
 
@@ -195,6 +210,13 @@ export function SignInScreen({ onSignedIn }: { onSignedIn: () => void }) {
               <ActivityIndicator size="small" color={theme.brand} />
               <Text style={styles.waitingText}>Waiting for you to approve it…</Text>
             </View>
+          </>
+        ) : null}
+
+        {status === "connected" ? (
+          <>
+            <ActivityIndicator color={theme.brand} />
+            <Text style={styles.body}>Connected. Opening the shop…</Text>
           </>
         ) : null}
 

@@ -130,7 +130,16 @@ export default function App() {
       <>
         <StatusBar barStyle="dark-content" backgroundColor={theme.canvas} />
         <SafeAreaView style={styles.fill}>
-          <SignInScreen onSignedIn={() => void refreshCart()} />
+          {/* The token comes back from pairing rather than being read out of
+              SecureStore again. Reading it happens once, at launch, so wiring
+              this to a refresh left a freshly approved phone sitting on the
+              sign-in screen until it was force-closed and reopened. */}
+          <SignInScreen
+            onSignedIn={(fresh) => {
+              setToken(fresh);
+              void refreshCart();
+            }}
+          />
         </SafeAreaView>
       </>
     );
