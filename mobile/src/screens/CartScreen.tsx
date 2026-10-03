@@ -155,7 +155,15 @@ function Line({
     <View style={styles.line}>
       <View style={styles.lineTop}>
         <View style={styles.lineThumb}>
-          <Text style={styles.thumbEmoji}>{item.emoji}</Text>
+          {/* The photograph, not the emoji. Half this catalogue's emoji render as
+              a tofu box on iOS, and a cart of three products showed three
+              meaningless glyphs where the pictures should be. The emoji is only a
+              fallback now, for a product with no image at all. */}
+          {item.imageUrl ? (
+            <Image source={{ uri: item.imageUrl }} style={styles.thumbImage} />
+          ) : (
+            <Text style={styles.thumbEmoji}>{item.emoji}</Text>
+          )}
         </View>
 
         <View style={styles.lineBody}>
@@ -254,6 +262,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   thumbEmoji: { fontSize: 24 },
+  thumbImage: { width: "100%", height: "100%", resizeMode: "cover" },
   lineBody: { flex: 1, minWidth: 0 },
   name: { fontSize: 15, fontWeight: "700", color: theme.ink, lineHeight: 19 },
   unit: { fontSize: 12, color: theme.inkMuted, marginTop: 2 },

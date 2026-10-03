@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { resolveUserId } from "@/lib/mobileAuth";
+import { originFromRequest } from "@/lib/origin";
+import { env } from "@/lib/env";
 import { readCart, updateCartLine, clearCart, mergeCart } from "@/lib/cart";
 
 /**
@@ -50,16 +52,32 @@ const mergeSchema = z.object({
     .max(50),
 });
 
-/** The header badge wants a count and the basket wants a total; send both. */
-function summarise(items: Awaited<ReturnType<typeof readCart>>) {
+/**
+ * The header badge wants a count and the basket wants a total; send both.
+ *
+ * Image paths are made absolute here for the same reason /api/products does it:
+ * they are stored root-relative, which next/image resolves against the site, and
+ * which a React Native <Image> cannot resolve at all. Without the origin the
+ * mobile app's cart falls back to the emoji column, and several of those render
+ * as tofu boxes on iOS.
+ */
+function summarise(items: Awaited<ReturnType<typeof readCart>>, origin: string) {
   return {
-    items,
+    items: items.map((item) => ({
+      ...item,
+      imageUrl: item.imageUrl ? `${origin}${item.imageUrl}` : null,
+    })),
     count: items.reduce((total, item) => total + item.quantity, 0),
     // Integer Kobo, display only. /api/checkout recalculates every price from
     // the database and ignores this number, exactly as it ignores the prices the
     // browser sends.
     subtotal: items.reduce((total, item) => total + item.price * item.quantity, 0),
   };
+}
+
+/** Derived from the request, so this is right on localhost and on previews too. */
+function originFor(request: Request): string {
+  return originFromRequest(request, env.authUrl);
 }
 
 function unauthorized() {
@@ -73,7 +91,7 @@ export async function GET(request: Request) {
   const userId = await resolveUserId(request);
   if (!userId) return unauthorized();
 
-  return NextResponse.json(summarise(await readCart(userId)));
+  return NextResponse.json(summarise(await readCart(userId), originFor(request)));
 }
 
 export async function POST(request: Request) {
@@ -106,7 +124,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "That product does not exist." }, { status: 404 });
   }
 
-  return NextResponse.json(summarise(await readCart(userId)));
+  return NextResponse.json(summarise(await readCart(userId), originFor(request)));
 }
 
 /**
@@ -132,7 +150,7 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "That cart is not valid." }, { status: 400 });
   }
 
-  return NextResponse.json(summarise(await mergeCart(userId, parsed.data.lines)));
+  return NextResponse.json(summarise(await mergeCart(userId, parsed.data.lines), originFor(request)));
 }
 
 export async function DELETE(request: Request) {
@@ -140,5 +158,5 @@ export async function DELETE(request: Request) {
   if (!userId) return unauthorized();
 
   await clearCart(userId);
-  return NextResponse.json(summarise([]));
+  return NextResponse.json(summarise([], originFor(request)));
 }

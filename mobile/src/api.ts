@@ -35,6 +35,15 @@ export interface CartItem {
   quantity: number;
   emoji: string;
   maxStock: number;
+  /**
+   * The product photo, already made absolute by /api/cart.
+   *
+   * The emoji is a fallback, and a poor one: several of the catalogue's emoji
+   * render as a tofu box on iOS, which is what the cart looked like before this
+   * existed - three rows of meaningless glyphs for products that all have a
+   * photograph. Null only when the product genuinely has no image_url.
+   */
+  imageUrl?: string | null;
 }
 
 export interface Cart {

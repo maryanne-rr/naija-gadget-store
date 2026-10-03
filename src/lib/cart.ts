@@ -46,7 +46,7 @@ export async function readCart(userId: string): Promise<CartItem[]> {
         quantity,
         created_at,
         products (
-          id, slug, name, price, emoji, stock
+          id, slug, name, price, emoji, stock, image_url
         )
       `,
     )
@@ -74,6 +74,7 @@ export async function readCart(userId: string): Promise<CartItem[]> {
           price: number;
           emoji: string;
           stock: number;
+          image_url?: string | null;
         }
       | null
       | undefined;
@@ -92,6 +93,14 @@ export async function readCart(userId: string): Promise<CartItem[]> {
         quantity: Number(row.quantity) || 1,
         emoji: product.emoji,
         maxStock: product.stock,
+        // Root-relative, like products.image_url. /api/cart attaches the origin on
+        // the way out, for the same reason /api/products does: the website's
+        // next/image resolves it, and a React Native <Image> cannot.
+        //
+        // Carrying it matters more than it sounds. The alternative is the emoji
+        // column, and several of those render as tofu boxes on iOS - the cart
+        // filled with photos of the products they are supposed to show.
+        imageUrl: product.image_url ?? null,
       },
     ];
   });

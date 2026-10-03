@@ -33,9 +33,8 @@ import { theme } from "../theme";
  *
  * THE ORDER IS THE CATALOGUE'S, NOT THE API'S
  * The server sorts by featured then newest. That is the right order for "what is
- * new", which is not the same as "what would I like to look at", so the first
- * section is whatever the server called featured and the rest follow the category
- * order in catalog.ts.
+ * new", which is not the same as "what would I like to look at", so what is
+ * reduced leads and the rest follow the category order in catalog.ts.
  */
 export function ShopScreen({
   token,
@@ -150,7 +149,7 @@ function groupIntoSections(products: Product[]) {
   const sections: { title: string; data: Product[] }[] = [];
 
   if (featured.length > 0) {
-    sections.push({ title: "Featured", data: featured });
+    sections.push({ title: "Reduced", data: featured });
   }
 
   for (const category of CATEGORY_ORDER) {
@@ -174,12 +173,19 @@ function groupIntoSections(products: Product[]) {
 }
 
 /**
- * Featured, as the API sends it.
+ * Which products lead, and why the section is called "Reduced".
  *
- * /api/products does not include the `featured` column, because nothing needs it
- * on the phone - and rather than widen the payload for one badge, a deal product
- * stands in as the thing worth surfacing first. A discount is a real reason to
- * look at something; "featured" is a label that means whatever the seeder said.
+ * /api/products does not send the `featured` column, because nothing needs it on
+ * the phone. Rather than widen the payload for one flag, a product that is
+ * genuinely reduced stands in as the one worth surfacing first - a real discount
+ * is a reason to look at something, whereas "featured" means only whatever the
+ * seeder said.
+ *
+ * Which is also why the heading says Reduced and not Featured: eight of the
+ * twenty-eight products are on offer, so the label has to describe what is
+ * actually in the section. It matches the wording the schema already insists on -
+ * "reduced" and "deal of the day" are different claims, and this is the first.
+ * The rotation itself is the website's carousel, one product a day.
  */
 function isFeatured(product: Product): boolean {
   return product.deal;

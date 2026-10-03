@@ -261,9 +261,11 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     backgroundColor: theme.ink,
     paddingLeft: 16,
-    // Room on the right for Expo Go's floating development button, which
-    // otherwise sits on top of Sign out and makes it untappable.
-    paddingRight: 60,
+    // Room on the right for Expo Go's floating development button. 60px was not
+    // enough - the screenshot still showed "Sign ou" with the button sitting on
+    // the last letter - so the label is given its own padding and the button is
+    // pushed clear rather than being overlapped and left untappable.
+    paddingRight: 78,
     paddingBottom: 14,
     gap: 10,
   },
