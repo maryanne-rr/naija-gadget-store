@@ -73,7 +73,12 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       className={`${body.variable} ${display.variable} ${mono.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col">
-        <CartProvider>
+        {/* `signedIn` is passed rather than fetched on the client so the cart
+            knows which store to use before it renders anything. Without it the
+            first paint would read localStorage, flash a guest basket, and then
+            swap - which for a signed-in shopper means briefly showing them an
+            empty cart they know is not empty. */}
+        <CartProvider signedIn={Boolean(session?.user?.id)}>
           <SiteHeader user={user} authReady={authIsConfigured()} />
 
           <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">{children}</main>

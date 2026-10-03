@@ -15,12 +15,23 @@ import { signInWithGoogle } from "@/app/actions";
 export function GoogleSignInButton({
   label = "Sign in",
   className = "",
+  redirectTo,
 }: {
   label?: string;
   className?: string;
+  /**
+   * Where to land after signing in, as a same-site path such as "/pair/KX7M-92QB".
+   *
+   * Omitted everywhere except the device-pairing page, which has to return the
+   * visitor to the approval screen. The action validates this - see safeRedirect
+   * in src/app/actions.ts - so an attacker-supplied value cannot turn the sign-in
+   * into an open redirect.
+   */
+  redirectTo?: string;
 }) {
   return (
     <form action={signInWithGoogle}>
+      {redirectTo ? <input type="hidden" name="next" value={redirectTo} /> : null}
       <button
         type="submit"
         className={`flex items-center justify-center gap-2 ${className}`}

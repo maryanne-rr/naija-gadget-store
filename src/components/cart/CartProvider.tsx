@@ -1,14 +1,28 @@
 "use client";
 
-import { createContext, useCallback, useContext, useMemo, useSyncExternalStore, type ReactNode } from "react";
 import {
-  clearCart,
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react";
+import {
+  cartIsSynced,
+  clearCart as clearGuestCart,
   getHydratedSnapshot,
   getServerHydratedSnapshot,
   getServerSnapshot,
   getSnapshot,
+  localSnapshot,
+  serverAdd,
+  serverClear,
+  serverSetQuantity,
   subscribe,
   subscribeHydration,
+  syncToServerCart,
   writeCart,
 } from "./cartStore";
 import { MAX_QUANTITY, type CartItem } from "./types";
@@ -16,13 +30,21 @@ import { MAX_QUANTITY, type CartItem } from "./types";
 /**
  * Cart state for the whole app.
  *
- * The actual data lives in localStorage and is managed by cartStore.ts; this
- * component wires that into React and exposes the actions the UI needs.
+ * TWO STORES, ONE INTERFACE
+ *   - A signed-in shopper's cart lives in the database, so the same basket
+ *     follows them from the website to the phone.
+ *   - A guest's cart lives in localStorage, exactly as it always did. A basket
+ *     belongs to someone who has not signed in yet, and an abandoned cart is not
+ *     an order.
  *
- * Why the cart is client-side rather than a database table:
- * a basket belongs to someone who has not signed in yet, and an abandoned cart
- * is not an order. Keeping it on the device also means the basket survives a
- * page refresh and a closed tab.
+ * Every consumer calls useCart() and cannot tell which one it has, which is the
+ * point: the swap is contained here and in cartStore.ts rather than reaching into
+ * the cart page, the header badge and the checkout form.
+ *
+ * WHY THE EXTERNAL STORE IS STILL HERE
+ * The data lives outside React in both modes, so useSyncExternalStore is still the
+ * right tool and hydration still behaves. What changed is what getSnapshot()
+ * returns and where writes go.
  */
 
 interface CartContextValue {
@@ -36,6 +58,8 @@ interface CartContextValue {
    * Use it to avoid showing an "empty" state that is merely not loaded yet.
    */
   hydrated: boolean;
+  /** True when this cart is the database one, shared with the mobile app. */
+  synced: boolean;
   add: (item: Omit<CartItem, "quantity">, quantity?: number) => void;
   setQuantity: (productId: string, quantity: number) => void;
   remove: (productId: string) => void;
@@ -44,7 +68,18 @@ interface CartContextValue {
 
 const CartContext = createContext<CartContextValue | null>(null);
 
-export function CartProvider({ children }: { children: ReactNode }) {
+export function CartProvider({
+  children,
+  signedIn = false,
+}: {
+  children: ReactNode;
+  /**
+   * Whether anybody is signed in. Passed in from the server layout, which is the
+   * only place that knows, so the client never has to guess - and never renders a
+   * "signed in, empty cart" state that is really "not loaded yet".
+   */
+  signedIn?: boolean;
+}) {
   // React re-reads this on every render and re-renders when it changes. During
   // hydration it uses the server snapshot (empty), so the first paint matches
   // the HTML Next.js sent - no mismatch warning.
@@ -55,25 +90,48 @@ export function CartProvider({ children }: { children: ReactNode }) {
     getServerHydratedSnapshot,
   );
 
-  const add = useCallback((item: Omit<CartItem, "quantity">, quantity = 1) => {
-    const next = [...getSnapshot()];
-    const index = next.findIndex((entry) => entry.productId === item.productId);
-    const cap = item.maxStock > 0 ? Math.min(item.maxStock, MAX_QUANTITY) : MAX_QUANTITY;
+  // Only for a signed-in shopper, and only once per page load. The store guards
+  // against doing it twice, and this effect returns a cleanup so React Strict
+  // Mode's double-invoke in development does not fire two merges.
+  useEffect(() => {
+    if (!signedIn) return;
+    void syncToServerCart();
+  }, [signedIn]);
 
-    if (index === -1) {
-      next.push({ ...item, quantity: Math.min(Math.max(quantity, 1), cap) });
-    } else {
-      next[index] = {
-        ...next[index],
-        quantity: Math.min(next[index].quantity + quantity, cap),
-      };
-    }
+  const add = useCallback(
+    (item: Omit<CartItem, "quantity">, quantity = 1) => {
+      if (cartIsSynced()) {
+        // The database decides the final number - it caps at the stock on hand.
+        void serverAdd(item.productId, quantity);
+        return;
+      }
 
-    writeCart(next);
-  }, []);
+      const next = [...localSnapshot()];
+      const index = next.findIndex((entry) => entry.productId === item.productId);
+      const cap = item.maxStock > 0 ? Math.min(item.maxStock, MAX_QUANTITY) : MAX_QUANTITY;
+
+      if (index === -1) {
+        next.push({ ...item, quantity: Math.min(Math.max(quantity, 1), cap) });
+      } else {
+        next[index] = {
+          ...next[index],
+          quantity: Math.min(next[index].quantity + quantity, cap),
+        };
+      }
+
+      writeCart(next);
+    },
+    [],
+  );
 
   const setQuantity = useCallback((productId: string, quantity: number) => {
-    const next = getSnapshot()
+    if (cartIsSynced()) {
+      // A quantity of zero removes the line, on both sides of the wire.
+      void serverSetQuantity(productId, quantity);
+      return;
+    }
+
+    const next = localSnapshot()
       .map((entry) => {
         if (entry.productId !== productId) return entry;
         const cap = entry.maxStock > 0 ? Math.min(entry.maxStock, MAX_QUANTITY) : MAX_QUANTITY;
@@ -86,18 +144,36 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const remove = useCallback((productId: string) => {
-    writeCart(getSnapshot().filter((entry) => entry.productId !== productId));
+    if (cartIsSynced()) {
+      void serverSetQuantity(productId, 0);
+      return;
+    }
+    writeCart(localSnapshot().filter((entry) => entry.productId !== productId));
   }, []);
 
   const clear = useCallback(() => {
-    clearCart();
+    if (cartIsSynced()) {
+      void serverClear();
+      return;
+    }
+    clearGuestCart();
   }, []);
 
   const value = useMemo<CartContextValue>(() => {
     const count = items.reduce((total, item) => total + item.quantity, 0);
     const subtotal = items.reduce((total, item) => total + item.price * item.quantity, 0);
 
-    return { items, count, subtotal, hydrated, add, setQuantity, remove, clear };
+    return {
+      items,
+      count,
+      subtotal,
+      hydrated,
+      synced: cartIsSynced(),
+      add,
+      setQuantity,
+      remove,
+      clear,
+    };
   }, [items, hydrated, add, setQuantity, remove, clear]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

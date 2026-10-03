@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "Naija Gadgets",
+    "slug": "naija-gadgets",
+    "scheme": "naija",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#14163a",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.naijagadgets.store"
+    },
+    "android": {
+      "package": "com.naijagadgets.store",
+      "adaptiveIcon": {
+        "backgroundColor": "#14163a",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": ["expo-secure-store"]
+  }
+}

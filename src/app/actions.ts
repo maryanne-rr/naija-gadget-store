@@ -31,10 +31,49 @@ import { cookies } from "next/headers";
  * Doing that in a server action means the token is never handled in client code
  * at all, which is both simpler and safer than wiring it up by hand.
  *
- * The post-login destination is hard-coded, never taken from the browser.
+/**
+ * Only a same-site path is allowed through.
+ *
+ * After sign-in the app sends the user back to wherever they came from, which
+ * means taking a redirect target from the browser - and an unvalidated one is an
+ * open redirect: `?next=https://evil.example` would sign a real user in and then
+ * bounce them to a convincing copy of the shop asking for their card details.
+ *
+ * Three things are rejected, and they are the three ways to spell "somewhere
+ * else" while still starting with a slash:
+ *
+ *   //evil.example    protocol-relative - the browser reads the // as a scheme
+ *   /\evil.example    backslashes are normalised to slashes by some browsers, so
+ *                     this is the same attack with a different character
+ *   https://...      absolute, in case the leading-slash check is ever loosened
  */
-export async function signInWithGoogle() {
-  await signIn("google", { redirectTo: "/" });
+function safeRedirect(raw: FormDataEntryValue | null): string {
+  if (typeof raw !== "string") return "/";
+
+  const target = raw.trim();
+
+  if (target.length === 0 || target.length > 200) return "/";
+  if (!target.startsWith("/")) return "/";
+  if (target.startsWith("//")) return "/";
+  if (target.includes("\\")) return "/";
+
+  return target;
+}
+
+/**
+ * Start Google sign-in, returning to wherever the visitor was.
+ *
+ * The post-login destination used to be hard-coded to "/". It now comes from the
+ * form, because the device-pairing page (/pair/CODE) needs it: somebody approving
+ * a phone who is not signed in yet has to end up back on the approval screen,
+ * not on the homepage with no idea what they just approved.
+ *
+ * The value is validated by safeRedirect() rather than trusted.
+ */
+export async function signInWithGoogle(formData?: FormData) {
+  const redirectTo = safeRedirect(formData?.get("next") ?? null);
+
+  await signIn("google", { redirectTo });
 }
 
 export async function signOutAction() {

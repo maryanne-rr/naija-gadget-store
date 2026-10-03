@@ -77,8 +77,13 @@ function readStorage(): string {
   }
 }
 
-/** Called by useSyncExternalStore during render. Must be pure and stable. */
-export function getSnapshot(): CartItem[] {
+/**
+ * The localStorage basket, parsed.
+ *
+ * Called during render by useSyncExternalStore, so it must be pure and return a
+ * referentially stable value while nothing has changed - hence the parse cache.
+ */
+export function localSnapshot(): CartItem[] {
   const raw = readStorage();
   if (raw !== cachedRaw) {
     cachedRaw = raw;
@@ -170,4 +175,174 @@ export function getHydratedSnapshot(): boolean {
 /** On the server, nothing has hydrated yet. */
 export function getServerHydratedSnapshot(): boolean {
   return false;
+}
+
+// ============================================================================
+//  Server-backed cart
+//
+//  localStorage is scoped to one browser profile on one device. A phone and a
+//  laptop have two unrelated stores, so an item added on the website could never
+//  appear on the phone. For a signed-in shopper the cart therefore lives in the
+//  database instead - see src/lib/cart.ts - and this half of the file drives it.
+//
+//  WHY THE EXTERNAL STORE STILL EXISTS
+//  useSyncExternalStore still does the React wiring, so CartProvider and every
+//  component that calls useCart() are unchanged. The difference is only in what
+//  getSnapshot() returns and where writes go. Swapping the storage backend should
+//  not mean rewriting every consumer of it, and this way it did not.
+// ============================================================================
+
+type CartMode = "guest" | "server";
+
+let mode: CartMode = "guest";
+let serverItems: CartItem[] = [];
+
+/** True once a server fetch has succeeded and serverItems is authoritative. */
+let serverReady = false;
+
+/** Why the last server call failed, for the banner the cart page can show. */
+let serverError = "";
+
+export function cartIsSynced(): boolean {
+  return mode === "server" && serverReady;
+}
+
+export function cartSyncError(): string {
+  return serverError;
+}
+
+/**
+ * What React reads.
+ *
+ * Flipped only after a successful fetch, never optimistically. Reading an empty
+ * serverItems during the fetch would flash "your cart is empty" at somebody whose
+ * basket is merely still loading, which is the exact failure the `hydrated` flag
+ * in CartProvider exists to prevent.
+ */
+function currentSnapshot(): CartItem[] {
+  return mode === "server" ? serverItems : localSnapshot();
+}
+
+/** getSnapshot as a function reference, so useSyncExternalStore keeps working. */
+export const getSnapshot = currentSnapshot;
+
+function applyServerItems(items: CartItem[]) {
+  serverItems = items;
+  serverReady = true;
+  serverError = "";
+  mode = "server";
+  notify();
+}
+
+async function callCartApi(method: "POST" | "PUT" | "DELETE", body?: unknown) {
+  const response = await fetch("/api/cart", {
+    method,
+    headers: { "Content-Type": "application/json" },
+    // The session cookie has to ride along, or the server sees an anonymous
+    // request and answers 401. Same-origin fetch sends it by default, but saying
+    // so explicitly keeps this working if the app is ever served from a
+    // different origin.
+    credentials: "same-origin",
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    // 401 is the interesting one: it means the session is gone, not that the
+    // cart is broken. Falling back to the guest basket keeps the shop usable.
+    throw new Error(response.status === 401 ? "not-signed-in" : `cart api ${response.status}`);
+  }
+
+  const payload = (await response.json()) as { items?: CartItem[] };
+  if (!Array.isArray(payload.items)) {
+    throw new Error("cart api returned no items");
+  }
+
+  applyServerItems(payload.items);
+}
+
+/**
+ * Switch this browser over to the database cart.
+ *
+ * Called once, when a signed-in shopper's page loads. It does three things:
+ * fetches the server cart, folds in anything already sitting in localStorage, and
+ * clears localStorage so the merge cannot happen twice.
+ *
+ * THE MERGE MATTERS MORE THAN IT LOOKS
+ * Somebody fills a basket, then signs in. Those items are in localStorage and
+ * belong to the account they are about to have. Uploading them blind would
+ * double anything already on the server, so quantities are summed server-side and
+ * capped at stock.
+ *
+ * FAILURE IS NOT FATAL
+ * If the fetch fails the cart stays in guest mode and the page keeps working.
+ * A shopper with a working basket should not lose it because a network request
+ * timed out.
+ */
+export async function syncToServerCart(): Promise<void> {
+  if (mode === "server") return;
+
+  try {
+    const guestItems = localSnapshot();
+
+    const response = await fetch("/api/cart", {
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      cache: "no-store",
+    });
+
+    if (response.status === 401) {
+      // Not signed in after all, or the session expired mid-page. Guest mode is
+      // the correct answer, and it needs no explanation to the shopper.
+      return;
+    }
+    if (!response.ok) {
+      throw new Error(`cart api ${response.status}`);
+    }
+
+    const payload = (await response.json()) as { items?: CartItem[] };
+    if (!Array.isArray(payload.items)) {
+      throw new Error("cart api returned no items");
+    }
+
+    if (guestItems.length > 0) {
+      // PUT sums rather than replaces - see /api/cart.
+      await callCartApi("PUT", {
+        lines: guestItems.map((item) => ({
+          productId: item.productId,
+          quantity: item.quantity,
+        })),
+      });
+
+      // Only now that the merge has landed. Clearing first would lose the basket
+      // if the PUT failed.
+      writeCart([]);
+      return;
+    }
+
+    applyServerItems(payload.items);
+  } catch (error) {
+    serverError = error instanceof Error ? error.message : String(error);
+    console.error("[cart] could not sync to the server cart:", serverError);
+  }
+}
+
+/** Add to the database cart. */
+export async function serverAdd(productId: string, quantity = 1) {
+  await callCartApi("POST", { productId, quantity, mode: "add" });
+}
+
+/**
+ * Set an exact quantity. Zero removes the line - the same rule the guest cart
+ * uses, and the same thing set_cart_quantity() does in the database.
+ */
+export async function serverSetQuantity(productId: string, quantity: number) {
+  await callCartApi("POST", {
+    productId,
+    quantity: Math.max(0, Math.trunc(quantity)),
+    mode: "set",
+  });
+}
+
+export async function serverClear() {
+  await callCartApi("DELETE");
 }
