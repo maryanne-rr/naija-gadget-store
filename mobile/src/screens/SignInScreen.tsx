@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  AppState,
   Linking,
   Pressable,
   ScrollView,
@@ -65,10 +66,15 @@ export function SignInScreen({ onSignedIn }: { onSignedIn: (token: string) => vo
   // recreate the interval on every render.
   const claimRef = useRef<string | null>(null);
 
-  const begin = useCallback(async () => {
-    setStatus("starting");
-    setError("");
-
+  /**
+   * Ask the server for a code. Does not touch `status` on the way in, because the
+   * first call runs from an effect and a synchronous setState there cascades.
+   *
+   * Split from begin() below for that reason alone. `status` already starts as
+   * "starting", so the reset was a no-op on launch and only ever did anything for
+   * the retry buttons - which is where it belongs.
+   */
+  const requestCode = useCallback(async () => {
     try {
       if (!claimRef.current) {
         claimRef.current = await readOrCreateClaimSecret();
@@ -84,9 +90,20 @@ export function SignInScreen({ onSignedIn }: { onSignedIn: (token: string) => vo
     }
   }, []);
 
+  /** Used by the retry buttons: reset the screen, then ask again. */
+  const begin = useCallback(() => {
+    setStatus("starting");
+    setError("");
+    setCode(null);
+    setPairUrl(null);
+    void requestCode();
+  }, [requestCode]);
+
   useEffect(() => {
-    void begin();
-  }, [begin]);
+    // No synchronous setState before the first await - the state is already
+    // "starting" from useState, so the reset begin() does is unnecessary here.
+    void requestCode();
+  }, [requestCode]);
 
   /**
    * Poll until approved.
@@ -94,6 +111,16 @@ export function SignInScreen({ onSignedIn }: { onSignedIn: (token: string) => vo
    * The interval is cleared on every path out of the loop - approved, expired,
    * denied, or unmounted - because a phone that keeps asking every two seconds
    * after the answer is not a phone that has finished signing in.
+   *
+   * COMING BACK FROM THE BROWSER CHECKS IMMEDIATELY
+   * The whole approval happens in a browser, so the app is backgrounded for the
+   * duration and the phone has usually suspended the JS timer entirely. Coming
+   * back and being told "waiting for you to approve it" for another two seconds,
+   * immediately after approving it, is the moment this screen feels broken. So a
+   * foreground transition cancels the pending timeout and asks now.
+   *
+   * That works with or without the deep link, in Expo Go or in the installed app,
+   * and on a platform where nothing handles naija:// at all.
    */
   useEffect(() => {
     if (status !== "waiting" || !code || !claimRef.current) return;
@@ -150,9 +177,25 @@ export function SignInScreen({ onSignedIn }: { onSignedIn: (token: string) => vo
 
     void check();
 
+    // Held in a ref so the listener below can reach the current `check` without
+    // this effect having to depend on it - a new function identity each render
+    // would tear the subscription down and rebuild it constantly.
+    const checkRef = { current: check };
+
+    const onForeground = (next: string) => {
+      if (next !== "active") return;
+
+      // Ask now rather than waiting out whatever is left of the interval.
+      if (timer) clearTimeout(timer);
+      void checkRef.current();
+    };
+
+    const subscription = AppState.addEventListener("change", onForeground);
+
     return () => {
       cancelled = true;
       if (timer) clearTimeout(timer);
+      subscription.remove();
     };
   }, [status, code, onSignedIn]);
 

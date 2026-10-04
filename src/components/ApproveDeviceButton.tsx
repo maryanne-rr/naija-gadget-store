@@ -3,6 +3,16 @@
 import { useState } from "react";
 
 /**
+ * Matches the scheme in mobile/app.json.
+ *
+ * Duplicated rather than imported because this is website code and app.json is
+ * app code - nothing here can read that file at runtime, and a deep link whose
+ * scheme has silently drifted out of sync is worse than a duplicated string with a
+ * comment saying where the other copy is.
+ */
+const APP_SCHEME = "naija";
+
+/**
  * The "Approve this device" button on /pair/CODE.
  *
  * A client component because it calls an API route and shows the result. The
@@ -16,6 +26,8 @@ import { useState } from "react";
 export function ApproveDeviceButton({ code }: { code: string }) {
   const [state, setState] = useState<"idle" | "working" | "done" | "failed">("idle");
   const [message, setMessage] = useState("");
+  /** Whether we managed to hand the person back to the phone. */
+  const [opened, setOpened] = useState(false);
 
   async function approve() {
     setState("working");
@@ -36,6 +48,30 @@ export function ApproveDeviceButton({ code }: { code: string }) {
       }
 
       setState("done");
+
+      // Hand the person back to the phone.
+      //
+      // THE SCHEME IS REGISTERED BY THE INSTALLED APP ONLY
+      // app.json declares "scheme": "naija", which is what Android uses to build
+      // the intent filter. Expo Go's scheme is exp://, so in a development build
+      // this URL goes nowhere and silently does nothing. Which is fine, because
+      // the app also checks the moment it returns to the foreground - so the
+      // worst case is "no shortcut", not "stuck".
+      //
+      // The catch is real, not theoretical: window.location pointing at an
+      // unhandled scheme throws or logs depending on the browser, and some mobile
+      // browsers leave the page blank. So the fallback text is rendered alongside.
+      try {
+        // Not an internal navigation, which is what the rule below is about: this
+        // hands control to another application via a custom scheme. Suppressed
+        // explicitly so it is a decision on the record rather than a warning
+        // somebody silences by turning the rule off.
+        // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+        window.location.href = `${APP_SCHEME}://pair-complete?code=${encodeURIComponent(code)}`;
+        setOpened(true);
+      } catch {
+        setOpened(false);
+      }
     } catch {
       setState("failed");
       setMessage("Could not reach the shop. Check your connection and try again.");
@@ -51,9 +87,26 @@ export function ApproveDeviceButton({ code }: { code: string }) {
         <p className="font-semibold text-emerald-900 dark:text-emerald-100">
           That device is connected.
         </p>
-        <p className="mt-1 text-sm text-emerald-800 dark:text-emerald-200">
-          You can close this tab. The phone is signed in and sharing your cart.
-        </p>
+
+        {opened ? (
+          <>
+            <p className="mt-1 text-sm text-emerald-800 dark:text-emerald-200">
+              Your app is opening now.
+            </p>
+            {/* Not a fallback so much as the truth: the redirect works in the
+                installed app, and goes nowhere in a desktop browser. Saying so is
+                better than leaving someone staring at a blank page wondering
+                whether it worked. */}
+            <p className="mt-1 text-sm text-emerald-800 dark:text-emerald-200">
+              If nothing happens, close this tab and reopen Naija Gadgets — it is
+              signed in and sharing your cart.
+            </p>
+          </>
+        ) : (
+          <p className="mt-1 text-sm text-emerald-800 dark:text-emerald-200">
+            You can close this tab. The phone is signed in and sharing your cart.
+          </p>
+        )}
       </div>
     );
   }
