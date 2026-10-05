@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { SignInScreen } from "./SignInScreen";
+import { LockIcon, SyncIcon } from "../icons";
 import { theme } from "../theme";
 
 /**
@@ -46,6 +47,20 @@ export function AccountScreen({
           <Text style={styles.tagline}>a home for quality gadgets</Text>
         </View>
 
+        {/* What this screen is, before the sign-in card asks for anything.
+
+            An account screen that opens with a login form and no explanation
+            reads as an app that requires one. Saying plainly that browsing needs
+            no account - and that a basket works without one - is the accurate
+            version, and it is the same thing the website does. */}
+        <View style={styles.openNotice}>
+          <SyncIcon color={theme.brand} />
+          <Text style={styles.openNoticeText}>
+            No account needed to browse. Your basket is kept on this phone, and moves
+            across when you sign in.
+          </Text>
+        </View>
+
         <View style={styles.card}>
           <SignInScreen onSignedIn={onSignIn} />
         </View>
@@ -58,6 +73,10 @@ export function AccountScreen({
           <Note title="One account, two devices">
             Signed in, your cart is shared with the website and updates on both.
           </Note>
+          <Note title="The same shop, not a second one">
+            Every product, price and photo comes from this website’s own API. There
+            is no separate catalogue to fall out of date.
+          </Note>
         </View>
       </View>
     );
@@ -66,13 +85,22 @@ export function AccountScreen({
   return (
     <View style={styles.screen}>
       <View style={styles.card}>
-        <Text style={styles.label}>Signed in as</Text>
+        {/* A tick-shaped label rather than the word "account" alone. It is a small
+            thing, but a screen that says only "Signed in as ..." reads as a debug
+            view, and this is the one screen somebody will screenshot. */}
+        <View style={styles.signedRow}>
+          <View style={styles.signedBadge}>
+            <LockIcon color={theme.white} size={13} />
+          </View>
+          <Text style={styles.label}>Signed in</Text>
+        </View>
+
         <Text style={styles.email}>{email}</Text>
 
         <View style={styles.stat}>
           <Text style={styles.statValue}>{cartCount}</Text>
           <Text style={styles.statLabel}>
-            {cartCount === 1 ? "item" : "items"} in your cart
+            {cartCount === 1 ? "item" : "items"} in your cart, shared with the website
           </Text>
         </View>
 
@@ -114,6 +142,27 @@ const styles = StyleSheet.create({
   brand: { fontSize: 26, fontWeight: "800", color: theme.ink, letterSpacing: -0.5 },
   tagline: { fontSize: 14, fontStyle: "italic", color: theme.inkMuted, marginTop: 2 },
 
+  openNotice: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    marginHorizontal: 16,
+    marginTop: 14,
+    padding: 13,
+    borderRadius: theme.radius,
+    backgroundColor: theme.brandTint,
+  },
+  // The icon sits on its own line with the first line of text, so flex-start on
+  // the row rather than centre - centring it leaves it floating beside the
+  // second line of a two-line paragraph.
+  openNoticeText: {
+    flex: 1,
+    fontSize: 13,
+    color: theme.brand,
+    lineHeight: 19,
+    fontWeight: "600",
+  },
+
   card: {
     margin: 16,
     marginTop: 14,
@@ -129,6 +178,15 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
 
+  signedRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  signedBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 999,
+    backgroundColor: theme.green,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   label: {
     fontSize: 11,
     fontWeight: "700",

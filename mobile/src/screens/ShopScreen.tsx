@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -6,10 +6,12 @@ import {
   SectionList,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { fetchProducts, type CartItem, type Product } from "../api";
 import { discountPercent, formatNaira } from "../format";
+import { CloseIcon, SearchIcon, TickIcon } from "../icons";
 import { theme } from "../theme";
 
 /**
@@ -30,6 +32,16 @@ import { theme } from "../theme";
  * Grouping by category gives the same information the website's nav does, and
  * makes the catalogue legible on a small screen without adding a filter control
  * nobody would use for 28 items.
+ *
+ * WHY THERE IS A SEARCH BOX
+ * Sections are for browsing. Search is for the person who already knows what they
+ * want - "the 20000mAh one" - and scrolling six sections to find it is the reason
+ * people leave a shop. Twenty-eight rows is past the point where scrolling is
+ * quicker than typing, so it is not a premature optimisation.
+ *
+ * The box is fixed above the list rather than scrolling with it. That is the whole
+ * argument for having one: a field that scrolls off the top is a field nobody uses
+ * a second time.
  *
  * THE ORDER IS THE CATALOGUE'S, NOT THE API'S
  * The server sorts by featured then newest. That is the right order for "what is
@@ -55,6 +67,16 @@ export function ShopScreen({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+
+  /**
+   * The text input, so Clear can put the keyboard away.
+   *
+   * A ref rather than state: state would re-render the whole catalogue on every
+   * keystroke to hold something that only clearSearch needs, and the box already
+   * redraws from `query` anyway.
+   */
+  const inputRef = useRef<TextInput | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -78,6 +100,45 @@ export function ShopScreen({
   }, []);
 
   const sections = useMemo(() => groupIntoSections(products), [products]);
+
+  /**
+   * The visible list, filtered by the search box.
+   *
+   * Filtering happens on the grouped list rather than on the raw products, so the
+   * section headings survive a search. Searching "anker" and getting three rows
+   * under a bare list is a worse answer than three rows under "Deals" and one under
+   * "Audio" - the heading is what tells you the search found something.
+   *
+   * A section whose items all filtered out is dropped, so an empty heading never
+   * appears above nothing.
+   */
+  const visible = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return sections;
+
+    const matched = sections
+      .map((section) => ({
+        ...section,
+        data: section.data.filter((product) => matches(product, needle)),
+      }))
+      .filter((section) => section.data.length > 0);
+
+    return matched;
+  }, [sections, query]);
+
+  /** How many products the search text found, for the "no results" message. */
+  const searching = query.trim().length > 0;
+
+  /**
+   * Clear the box and give the list its focus back.
+   *
+   * Both, because clearing the text alone leaves the keyboard open over a list
+   * the person can no longer see, and blurring alone leaves the word in there.
+   */
+  const clearSearch = useCallback(() => {
+    setQuery("");
+    inputRef.current?.blur();
+  }, []);
 
   const add = useCallback(
     async (product: Product) => {
@@ -124,28 +185,100 @@ export function ShopScreen({
   }
 
   return (
-    <SectionList
-      style={styles.screen}
-      contentContainerStyle={styles.list}
-      sections={sections}
-      keyExtractor={(item) => item.id}
-      stickySectionHeadersEnabled={false}
-      renderSectionHeader={({ section }) => (
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>{section.title}</Text>
-          <Text style={styles.sectionCount}>{section.data.length}</Text>
+    <View style={styles.screen}>
+      <View style={styles.searchBar}>
+        <View style={styles.searchBox}>
+          <SearchIcon color={theme.inkMuted} />
+
+          <TextInput
+            ref={inputRef}
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search gadgets, brands, categories"
+            placeholderTextColor="#9aa0be"
+            style={styles.searchInput}
+            returnKeyType="search"
+            autoCorrect={false}
+            autoCapitalize="none"
+            clearButtonMode="never"
+            accessibilityLabel="Search the shop"
+          />
+
+          {/* Only rendered once there is something to clear, so the field does not
+              carry a dead control on an empty shop. */}
+          {query.length > 0 ? (
+            <Pressable
+              onPress={clearSearch}
+              style={styles.searchClear}
+              accessibilityRole="button"
+              accessibilityLabel="Clear search"
+            >
+              <CloseIcon color={theme.white} />
+            </Pressable>
+          ) : null}
         </View>
-      )}
-      renderItem={({ item }) => (
-        <Row
-          product={item}
-          inCart={cartCount.get(item.id) ?? 0}
-          busy={busy === item.id}
-          onAdd={() => void add(item)}
-        />
-      )}
-    />
+      </View>
+
+      <SectionList
+        style={styles.list}
+        contentContainerStyle={styles.listContent}
+        sections={visible}
+        keyExtractor={(item) => item.id}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        stickySectionHeadersEnabled={false}
+        ListEmptyComponent={
+          // Only reachable while searching. The catalogue itself is never empty
+          // once it has loaded, so an empty list and a failed load are different
+          // states and they get different messages.
+          searching ? (
+            <View style={styles.noResults}>
+              <Text style={styles.noResultsTitle}>Nothing matched “{query.trim()}”</Text>
+              <Text style={styles.noResultsBody}>
+                Try a shorter word, or a brand like Anker or JBL.
+              </Text>
+            </View>
+          ) : null
+        }
+        renderSectionHeader={({ section }) => (
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>{section.title}</Text>
+            <Text style={styles.sectionCount}>{section.data.length}</Text>
+          </View>
+        )}
+        renderItem={({ item }) => (
+          <Row
+            product={item}
+            inCart={cartCount.get(item.id) ?? 0}
+            busy={busy === item.id}
+            onAdd={() => void add(item)}
+          />
+        )}
+      />
+    </View>
   );
+}
+
+/**
+ * Whether one product matches what somebody typed.
+ *
+ * Four fields, because people search for whatever they can remember: "jbl" finds
+ * the brand, "10000" finds the capacity in the spec, "powerbank" finds a category
+ * word that is in neither the name nor the brand, and "anker" finds the company
+ * on a product branded something else.
+ *
+ * A single haystack built once per product per keystroke rather than four
+ * toLowerCase() calls here - with 28 products and a short query it makes no
+ * measurable difference, and the readable version is worth more than the
+ * micro-optimisation.
+ */
+function matches(product: Product, needle: string): boolean {
+  const haystack = [product.name, product.brand, product.spec, product.category]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  return haystack.includes(needle);
 }
 
 /**
@@ -240,6 +373,30 @@ function Row({
   const outOfStock = product.stock <= 0;
   const atStockLimit = !outOfStock && inCart >= product.stock;
 
+  /**
+   * A tick, for a moment, after a successful add.
+   *
+   * The add is a server round trip and on mobile data that is not instant. Without
+   * this the button does nothing visible until the "N in cart" pill appears under
+   * it, which on a slow connection is a second of pressing a button that looks
+   * broken. The tick confirms the tap landed before the number changes.
+   *
+   * Local state rather than App's, deliberately: it is one row's business, and
+   * putting it in App would mean a re-render of the whole catalogue every time
+   * anybody added anything anywhere.
+   */
+  const [justAdded, setJustAdded] = useState(false);
+
+  useEffect(() => {
+    if (!justAdded) return;
+
+    // 1.4s. Long enough to be seen at a glance, short enough that it is gone
+    // before somebody looks at a second product. Cancellable, because a row can
+    // scroll away mid-timer and coming back to a stale tick would be wrong.
+    const timer = setTimeout(() => setJustAdded(false), 1400);
+    return () => clearTimeout(timer);
+  }, [justAdded]);
+
   return (
     <View style={styles.row}>
       <View style={styles.thumb}>
@@ -281,7 +438,10 @@ function Row({
 
       <View style={styles.rowAction}>
         <Pressable
-          onPress={onAdd}
+          onPress={() => {
+            setJustAdded(true);
+            onAdd();
+          }}
           disabled={busy || outOfStock || atStockLimit}
           style={({ pressed }) => [
             styles.addButton,
@@ -293,6 +453,8 @@ function Row({
         >
           {busy ? (
             <ActivityIndicator size="small" color={theme.white} />
+          ) : justAdded ? (
+            <TickIcon color={theme.white} />
           ) : (
             <Text style={styles.addButtonText}>
               {outOfStock ? "Sold out" : atStockLimit ? "Max" : "Add"}
@@ -314,7 +476,68 @@ function Row({
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: theme.canvas },
-  list: { padding: 14, paddingBottom: 24 },
+  list: { flex: 1 },
+
+  // Above the search box rather than scrolling with it. A field that scrolls away
+  // is a field nobody uses twice, and searching is something everybody does at
+  // least once on a catalogue this size. The list takes the remaining height and
+  // the keyboard shrinks that rather than the field leaving the screen.
+  searchBar: {
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 4,
+    backgroundColor: theme.canvas,
+  },
+  searchBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+    backgroundColor: theme.white,
+    borderRadius: theme.radius,
+    borderWidth: 1,
+    borderColor: theme.line,
+    paddingHorizontal: 12,
+    // minHeight 46 rather than paddingVertical alone, for the same reason every
+    // other control in this app has one: the target, not the ink.
+    minHeight: 46,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: theme.ink,
+    // No vertical padding at all. Android centres a TextInput's text on its own
+    // line box, which pushes the placeholder up by a pixel or two against the
+    // icons beside it; zeroing the padding is the documented fix, and the box's own
+    // minHeight is what gives the field its height. includeFontPadding does the
+    // same job on the font's own line spacing. Neither costs anything on iOS,
+    // where TextInput has no such inset.
+    paddingVertical: 0,
+    includeFontPadding: false,
+  },
+  searchClear: {
+    width: 22,
+    height: 22,
+    borderRadius: 999,
+    backgroundColor: theme.inkMuted,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  listContent: { paddingHorizontal: 14, paddingBottom: 24, paddingTop: 8 },
+
+  noResults: { alignItems: "center", paddingHorizontal: 24, paddingTop: 48, gap: 6 },
+  noResultsTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: theme.ink,
+    textAlign: "center",
+  },
+  noResultsBody: {
+    fontSize: 13.5,
+    color: theme.inkMuted,
+    textAlign: "center",
+    lineHeight: 19,
+  },
   centre: {
     flex: 1,
     alignItems: "center",

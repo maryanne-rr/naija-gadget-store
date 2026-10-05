@@ -541,7 +541,14 @@ const styles = StyleSheet.create({
   buttonText: { color: theme.white, fontWeight: "800", fontSize: 15 },
   mark: { width: 18, height: 18 },
 
-  linkButton: { marginTop: 14, padding: 6 },
+  // minHeight 44 and centred, rather than padding around 13px text.
+  //
+  // Measured in the rendered app: this came out 29px tall, because padding: 6
+  // around a line of text is not a touch target. It is the secondary path now
+  // rather than the fallback - so it is not what somebody reaches for first - but
+  // a 29px control is still a control somebody tries to hit and misses, and a
+  // missed sign-in tap is the one failure this screen cannot afford.
+  linkButton: { marginTop: 10, minHeight: 44, paddingHorizontal: 8, justifyContent: "center" },
   linkText: {
     color: theme.inkMuted,
     fontSize: 13,
