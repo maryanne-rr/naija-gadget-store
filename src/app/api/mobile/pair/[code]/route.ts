@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { withCors } from "@/lib/cors";
 import { pollPairing } from "@/lib/devicePairing";
 import { issueMobileToken } from "@/lib/mobileAuth";
 
@@ -24,7 +25,9 @@ export async function GET(
   const claimSecret = request.headers.get("x-claim-secret");
 
   if (!claimSecret) {
-    return NextResponse.json({ error: "Missing claim secret." }, { status: 400 });
+    return withCors(
+      NextResponse.json({ error: "Missing claim secret." }, { status: 400 }),
+    );
   }
 
   const result = await pollPairing(code, claimSecret);
@@ -33,12 +36,17 @@ export async function GET(
     // Minted here rather than stored, so there is never a live token sitting in
     // the database waiting to be read. The bearer token is derived from the
     // approved user_id at the moment the phone collects it.
-    return NextResponse.json({
-      status: "ready",
-      token: await issueMobileToken(result.userId, result.email ?? ""),
-      user: { id: result.userId, email: result.email },
-    });
+    return withCors(
+      NextResponse.json({
+        status: "ready",
+        token: await issueMobileToken(result.userId, result.email ?? ""),
+        user: { id: result.userId, email: result.email },
+      }),
+    );
   }
 
-  return NextResponse.json({ status: result.status });
+  return withCors(NextResponse.json({ status: result.status }));
 }
+
+export const OPTIONS = () =>
+  withCors(new NextResponse(null, { status: 204 }) as unknown as NextResponse);

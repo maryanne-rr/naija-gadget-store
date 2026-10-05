@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { withCors } from "@/lib/cors";
 import { z } from "zod";
 import {
   findOrCreateUser,
@@ -41,14 +42,18 @@ export async function POST(request: Request) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "Could not read the request body." }, { status: 400 });
+    return withCors(
+      NextResponse.json({ error: "Could not read the request body." }, { status: 400 }),
+    );
   }
 
   const parsed = bodySchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json(
-      { error: "That sign-in could not be read. Please try again." },
-      { status: 400 },
+    return withCors(
+      NextResponse.json(
+        { error: "That sign-in could not be read. Please try again." },
+        { status: 400 },
+      ),
     );
   }
 
@@ -57,23 +62,32 @@ export async function POST(request: Request) {
     const userId = await findOrCreateUser(identity);
     const token = await issueMobileToken(userId, identity.email);
 
-    return NextResponse.json({
-      ok: true,
-      token,
-      user: { id: userId, email: identity.email, name: identity.name },
-    });
+    return withCors(
+      NextResponse.json({
+        ok: true,
+        token,
+        user: { id: userId, email: identity.email, name: identity.name },
+      }),
+    );
   } catch (error) {
     // A bad token is the caller's problem and gets a specific code so the app
     // can tell "try again" apart from "this account cannot be used".
     if (error instanceof MobileAuthError) {
       const status = error.code === "no-auth-secret" || error.code === "google-not-configured" ? 503 : 401;
-      return NextResponse.json({ error: error.message, code: error.code }, { status });
+      return withCors(
+        NextResponse.json({ error: error.message, code: error.code }, { status }),
+      );
     }
 
     console.error("[mobile/session] unexpected failure:", error);
-    return NextResponse.json(
-      { error: "Something went wrong signing you in. Please try again." },
-      { status: 500 },
+    return withCors(
+      NextResponse.json(
+        { error: "Something went wrong signing you in. Please try again." },
+        { status: 500 },
+      ),
     );
   }
 }
+
+export const OPTIONS = () =>
+  withCors(new NextResponse(null, { status: 204 }) as unknown as NextResponse);

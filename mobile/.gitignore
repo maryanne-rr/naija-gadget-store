@@ -39,3 +39,8 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# expo export --platform web output. A ~600 kB generated bundle, regenerated
+# on every export, and only ever served from disk by
+# scripts/serve-web-preview.mjs.
+/.expo-web-preview/

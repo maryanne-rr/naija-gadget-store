@@ -38,6 +38,25 @@ function check(name, actual, expected) {
   }
 }
 
+/**
+ * Printed at the end, and the exit code set from it.
+ *
+ * Without this the file counted its passes and never mentioned them, which eslint
+ * noticed before I did - "passed is assigned a value but never used" is a true
+ * observation about a test suite that cannot tell you whether it passed.
+ */
+function summary() {
+  if (failures.length === 0) {
+    console.log(`\n${green(`All good`)}: ${passed} passed, 0 failed\n`);
+    return;
+  }
+
+  console.log(
+    `\n${red(`${failures.length} failed`)}, ${passed} passed\n  ${failures.join("\n  ")}\n`,
+  );
+  process.exitCode = 1;
+}
+
 // ---------------------------------------------------------------------------
 // The parser, inlined rather than imported.
 //
@@ -121,9 +140,16 @@ const config = await readFile("mobile/src/config.ts", "utf8");
 
 const scheme = appJson.expo.scheme;
 const fromConfig = /APP_SCHEME\s*=\s*"([^"]+)"/.exec(config)?.[1];
+const googleAuth = await readFile("mobile/src/googleAuth.ts", "utf8");
+const cid = /([0-9]+-[a-z0-9]+\.apps\.googleusercontent\.com)/.exec(googleAuth)?.[1];
 
 check("app.json declares a scheme", typeof scheme === "string" && scheme.length > 0, true);
 check("config.ts uses the same scheme", fromConfig, scheme);
+check(
+  "expo-web-browser is a plugin, so Android builds the intent filter",
+  (appJson.expo.plugins ?? []).includes("expo-web-browser"),
+  true,
+);
 
 // A mismatch here is the nastiest kind of bug: nothing throws, no log line says
 // anything, and the symptom is a spinner that never resolves after a perfectly
@@ -132,3 +158,32 @@ check("config.ts uses the same scheme", fromConfig, scheme);
 console.log(
   dim(`\n  both say "${scheme}" - a mismatch here means sign-in silently hangs\n`),
 );
+
+// ---------------------------------------------------------------------------
+console.log(`\n${dim("the two audiences the server will accept")}\n`);
+
+// If this file and env.ts ever disagree about the variable name, the server reads
+// undefined, finds no Android audience, and rejects every native sign-in with
+// "google-not-configured" - which looks like a Google problem and is not.
+const envTs = await readFile("src/lib/env.ts", "utf8");
+const serverKey = /googleAndroidClientId:\s*read\("([A-Z_]+)"\)/.exec(envTs)?.[1];
+
+check("the app has a client id that looks real", cid.length > 20, true);
+check("the server reads one from an env var", typeof serverKey === "string", true);
+
+console.log(dim(`  the server expects ${serverKey}\n`));
+console.log(
+  dim(
+    "  Vercel holds the real value, so this cannot compare them - it checks the\n",
+  ),
+);
+console.log(
+  dim(
+    "  name and shape are plausible. The live server answered invalid-google-token\n",
+  ),
+);
+console.log(
+  dim("  rather than google-not-configured, which is the real proof it is set.\n"),
+);
+
+summary();

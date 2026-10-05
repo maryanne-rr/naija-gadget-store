@@ -3,6 +3,7 @@ import { z } from "zod";
 import { resolveUserId } from "@/lib/mobileAuth";
 import { originFromRequest } from "@/lib/origin";
 import { env } from "@/lib/env";
+import { withCors } from "@/lib/cors";
 import { readCart, updateCartLine, clearCart, mergeCart } from "@/lib/cart";
 
 /**
@@ -81,9 +82,8 @@ function originFor(request: Request): string {
 }
 
 function unauthorized() {
-  return NextResponse.json(
-    { error: "Sign in to sync your cart." },
-    { status: 401 },
+  return withCors(
+    NextResponse.json({ error: "Sign in to sync your cart." }, { status: 401 }),
   );
 }
 
@@ -91,7 +91,7 @@ export async function GET(request: Request) {
   const userId = await resolveUserId(request);
   if (!userId) return unauthorized();
 
-  return NextResponse.json(summarise(await readCart(userId), originFor(request)));
+  return withCors(NextResponse.json(summarise(await readCart(userId), originFor(request))));
 }
 
 export async function POST(request: Request) {
@@ -124,7 +124,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "That product does not exist." }, { status: 404 });
   }
 
-  return NextResponse.json(summarise(await readCart(userId), originFor(request)));
+  return withCors(NextResponse.json(summarise(await readCart(userId), originFor(request))));
 }
 
 /**
@@ -150,7 +150,7 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "That cart is not valid." }, { status: 400 });
   }
 
-  return NextResponse.json(summarise(await mergeCart(userId, parsed.data.lines), originFor(request)));
+  return withCors(NextResponse.json(summarise(await mergeCart(userId, parsed.data.lines), originFor(request))));
 }
 
 export async function DELETE(request: Request) {
@@ -158,5 +158,8 @@ export async function DELETE(request: Request) {
   if (!userId) return unauthorized();
 
   await clearCart(userId);
-  return NextResponse.json(summarise([], originFor(request)));
+  return withCors(NextResponse.json(summarise([], originFor(request))));
 }
+
+export const OPTIONS = () =>
+  withCors(new NextResponse(null, { status: 204 }) as unknown as NextResponse);

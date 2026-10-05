@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { withCors } from "@/lib/cors";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { approvePairing, PairingError } from "@/lib/devicePairing";
@@ -29,9 +30,11 @@ export async function POST(request: Request) {
   const userId = session?.user?.id;
 
   if (!userId) {
-    return NextResponse.json(
-      { error: "Sign in before approving a device." },
-      { status: 401 },
+    return withCors(
+      NextResponse.json(
+        { error: "Sign in before approving a device." },
+        { status: 401 },
+      ),
     );
   }
 
@@ -39,26 +42,37 @@ export async function POST(request: Request) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "Could not read the request body." }, { status: 400 });
+    return withCors(
+      NextResponse.json({ error: "Could not read the request body." }, { status: 400 }),
+    );
   }
 
   const parsed = bodySchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: "That code is not valid." }, { status: 400 });
+    return withCors(
+      NextResponse.json({ error: "That code is not valid." }, { status: 400 }),
+    );
   }
 
   try {
     await approvePairing(parsed.data.code, userId);
-    return NextResponse.json({ ok: true });
+    return withCors(NextResponse.json({ ok: true }));
   } catch (error) {
     if (error instanceof PairingError) {
-      return NextResponse.json({ error: error.message, code: error.code }, { status: 400 });
+      return withCors(
+        NextResponse.json({ error: error.message, code: error.code }, { status: 400 }),
+      );
     }
 
     console.error("[mobile/pair/approve] failed:", error);
-    return NextResponse.json(
-      { error: "Could not approve that device. Please try again." },
-      { status: 500 },
+    return withCors(
+      NextResponse.json(
+        { error: "Could not approve that device. Please try again." },
+        { status: 500 },
+      ),
     );
   }
 }
+
+export const OPTIONS = () =>
+  withCors(new NextResponse(null, { status: 204 }) as unknown as NextResponse);

@@ -3,6 +3,7 @@ import { listProducts } from "@/lib/products";
 import { CATEGORIES } from "@/lib/catalog";
 import { originFromRequest } from "@/lib/origin";
 import { env } from "@/lib/env";
+import { withCors } from "@/lib/cors";
 
 /**
  * GET /api/products - the catalogue, as JSON.
@@ -40,7 +41,7 @@ export async function GET(request: Request) {
   // the phone resolves the image itself.
   const origin = originFromRequest(request, env.authUrl);
 
-  return NextResponse.json({
+  return withCors(NextResponse.json({
     products: products.map((product) => ({
       id: product.id,
       slug: product.slug,
@@ -60,5 +61,9 @@ export async function GET(request: Request) {
       slug: category.slug,
       name: category.name,
     })),
-  });
+  }));
+
 }
+
+export const OPTIONS = () =>
+  withCors(new NextResponse(null, { status: 204 }) as unknown as NextResponse);

@@ -36,6 +36,14 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+
+    // Generated web builds of the app. `expo export --platform web` writes a
+    // 600 kB bundled and minified JavaScript file here, and linting it produces
+    // hundreds of warnings about Metro's own __BUNDLE_START_TIME__ and friends.
+    // It is build output, not source, and it is regenerated on every export.
+    "mobile/.expo/**",
+    "mobile/.expo-web-preview/**",
+    "mobile/dist/**",
   ]),
 ]);
 

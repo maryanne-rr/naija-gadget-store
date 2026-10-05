@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { withCors } from "@/lib/cors";
 import { z } from "zod";
 import { createPairing, generateClaimSecret, PAIR_TTL_MINUTES } from "@/lib/devicePairing";
 import { originFromRequest } from "@/lib/origin";
@@ -30,35 +31,46 @@ export async function POST(request: Request) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "Could not read the request body." }, { status: 400 });
+    return withCors(
+      NextResponse.json({ error: "Could not read the request body." }, { status: 400 }),
+    );
   }
 
   const parsed = bodySchema.safeParse(body);
 
   if (!parsed.success) {
-    return NextResponse.json({ error: "Could not start sign-in." }, { status: 400 });
+    return withCors(
+      NextResponse.json({ error: "Could not start sign-in." }, { status: 400 }),
+    );
   }
 
   try {
     const { code } = await createPairing(parsed.data.claimSecret);
     const origin = originFromRequest(request, env.authUrl);
 
-    return NextResponse.json({
-      ok: true,
-      code,
-      // Derived from the request, not configured, so the same build gives the
-      // right URL on localhost, on the Vercel domain, and on previews.
-      pairUrl: `${origin}/pair/${code}`,
-      expiresInSeconds: PAIR_TTL_MINUTES * 60,
-    });
+    return withCors(
+      NextResponse.json({
+        ok: true,
+        code,
+        // Derived from the request, not configured, so the same build gives the
+        // right URL on localhost, on the Vercel domain, and on previews.
+        pairUrl: `${origin}/pair/${code}`,
+        expiresInSeconds: PAIR_TTL_MINUTES * 60,
+      }),
+    );
   } catch (error) {
     console.error("[mobile/pair] could not create a pairing:", error);
-    return NextResponse.json(
-      { error: "Could not start sign-in. Please try again." },
-      { status: 500 },
+    return withCors(
+      NextResponse.json(
+        { error: "Could not start sign-in. Please try again." },
+        { status: 500 },
+      ),
     );
   }
 }
+
+export const OPTIONS = () =>
+  withCors(new NextResponse(null, { status: 204 }) as unknown as NextResponse);
 
 /**
  * GET /api/mobile/pair/claim-secret
