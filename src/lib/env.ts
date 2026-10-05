@@ -21,6 +21,28 @@ export const env = {
   mailFrom: read("MAIL_FROM") ?? "Naija Gadget Store <no-reply@sandbox.mailgun.org>",
 
   googleClientId: read("AUTH_GOOGLE_ID"),
+
+  /**
+   * The Android-type OAuth client, for the mobile app.
+   *
+   * A separate client, in the same Google Cloud project, because the website's is
+   * a *Web application* type and Google will not accept a custom-scheme redirect
+   * URI on a Web client. The app returns from Google over naija://callback, so it
+   * needs an Android client registered against its package name and the signing
+   * key's SHA-1.
+   *
+   * Both are accepted when verifying a token, and that is deliberate rather than
+   * sloppy: they are the same application in the same project, and the endpoint
+   * does the same thing either way - resolve an email to a users row and issue a
+   * token. A token minted for one is proof of the same identity as a token minted
+   * for the other, so accepting both widens which client may be used to sign in
+   * without widening who can.
+   *
+   * Optional. Without it the app falls back to pairing through a browser, which
+   * needs no second client and is the flow the website already uses.
+   */
+  googleAndroidClientId: read("AUTH_GOOGLE_ANDROID_ID"),
+
   googleClientSecret: read("AUTH_GOOGLE_SECRET"),
   authSecret: read("AUTH_SECRET"),
 

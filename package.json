@@ -16,6 +16,7 @@
     "check:categories": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-categories.mjs",
     "test:deals": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/test-deals.mjs",
     "test:sync": "node scripts/test-sync.mjs",
+    "test:auth": "node scripts/test-auth.mjs",
     "check": "npm run typecheck && npm run build && npm run check:categories && npm run test:deals && npm run test:sync && npm run smoke"
   },
   "dependencies": {

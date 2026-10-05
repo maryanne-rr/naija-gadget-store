@@ -9,8 +9,12 @@ import {
   View,
 } from "react-native";
 import Svg, { Path } from "react-native-svg";
+import { AuthRequest } from "expo-auth-session";
+import { discovery } from "expo-auth-session/providers/google";
+import * as WebBrowser from "expo-web-browser";
 import { createPairing, pollPairing, type PollResult } from "../api";
-import { PAIR_POLL_MS } from "../config";
+import { PAIR_POLL_MS, APP_SCHEME, GOOGLE_REDIRECT_PATH } from "../config";
+import { androidClientId, exchangeGoogleToken, idTokenFromRedirect } from "../googleAuth";
 import { readOrCreateClaimSecret, saveSession } from "../storage";
 import { theme } from "../theme";
 
@@ -60,13 +64,15 @@ export function SignInScreen({
 }: {
   onSignedIn: (token: string, email: string | null) => void;
 }) {
-  const [phase, setPhase] = useState<"starting" | "waiting" | "connected" | "error">(
-    "starting",
-  );
+  const [phase, setPhase] = useState<
+    "starting" | "native" | "waiting" | "connected" | "error"
+  >("starting");
   const [error, setError] = useState("");
 
-  // In a ref rather than state: the polling loop and the button both read it, and
-  // a state change would tear the interval down and rebuild it on every render.
+  /**
+   * In a ref rather than state: the polling loop and the button both read it, and
+   * a state change would tear the interval down and rebuild it on every render.
+   */
   const pairRef = useRef<{ code: string; pairUrl: string } | null>(null);
   const claimRef = useRef<string | null>(null);
 
@@ -74,18 +80,18 @@ export function SignInScreen({
    * Whether the browser has been sent to yet.
    *
    * State, not a ref, because it decides what the button says - a ref read during
-   * render is exactly the thing React warns about. It is also the polling
-   * effect's trigger, which is the correct dependency: asking every two seconds at
-   * nobody, before anyone has been sent anywhere, is pointless.
+   * render is exactly the thing React warns about. It is also the polling effect's
+   * trigger, which is the correct dependency: asking every two seconds at nobody,
+   * before anyone has been sent anywhere, is pointless.
    */
   const [opened, setOpened] = useState(false);
 
   /**
    * Ask the server for a pairing. Touches no state before its first await.
    *
-   * Split from startPairing() below for that reason: this one runs from an effect,
-   * and a synchronous setState in an effect body cascades. The reset is only ever
-   * needed for a retry, which is a click handler.
+   * This one runs from an effect, and a synchronous setState in an effect body
+   * cascades. The retry path resets the screen from a click handler instead, which
+   * is a place where a reset is both allowed and needed.
    */
   const requestPairing = useCallback(async () => {
     try {
@@ -101,14 +107,6 @@ export function SignInScreen({
     }
   }, []);
 
-  /** Retry path: reset the screen, forget the old pairing, ask again. */
-  const startPairing = useCallback(() => {
-    pairRef.current = null;
-    setPhase("starting");
-    setError("");
-    setOpened(false);
-    void requestPairing();
-  }, [requestPairing]);
 
   useEffect(() => {
     let cancelled = false;
@@ -130,6 +128,80 @@ export function SignInScreen({
       cancelled = true;
     };
   }, [requestPairing]);
+
+  /**
+   * Sign in with Google, inside the app.
+   *
+   * THE PRIMARY PATH. The account chooser appears here, with no browser and no
+   * code. Google returns an id_token which the shop verifies and exchanges for a
+   * bearer token, so the app never decides who it is.
+   *
+   * Any failure at all falls through to the browser pairing rather than showing an
+   * error. That is deliberate: a sign-in button that can fail with nothing behind
+   * it is a dead end, and the fallback is a working, already-tested path to the
+   * same account. Someone who sees the browser instead learns nothing was lost.
+   */
+  const signInNatively = useCallback(async () => {
+    try {
+      setPhase("native");
+
+      const request = new AuthRequest({
+        clientId: androidClientId(),
+        scopes: ["openid", "email", "profile"],
+        // Must match a redirect URI registered against the Android client, and
+        // must be the scheme Android can route back into this app. app.json
+        // declares "scheme": "naija", and that declaration is what builds the
+        // intent filter - so this string and app.json have to agree.
+        redirectUri: `${APP_SCHEME}://${GOOGLE_REDIRECT_PATH}`,
+        // PKCE. Without it a token intercepted in the browser tab could be
+        // replayed, and the code verifier is what ties the returned token to this
+        // app rather than to whoever watched the redirect.
+        usePKCE: true,
+        responseType: "id_token",
+      });
+
+      // A browser tab that closes itself when it is done. Google renders the
+      // account chooser here, so this IS the native sign-in - no web page of ours
+      // in between, and no code.
+      //
+      // makeAuthUrlAsync rather than request.url, because the URL is not built
+      // until the authorisation server's endpoints are known, and that is what
+      // the discovery document is for. Reading .url would be null.
+      const authUrl = await request.makeAuthUrlAsync(discovery);
+
+      const result = await WebBrowser.openAuthSessionAsync(
+        authUrl,
+        `${APP_SCHEME}://${GOOGLE_REDIRECT_PATH}`,
+      );
+
+      // The result is a full URL rather than parsed parameters, and the token may
+      // be in the fragment or the query depending on the flow Google chose. Both
+      // are handled in idTokenFromRedirect.
+      if (result.type !== "success") {
+        // dismissed or cancelled: the person changed their mind, which is not a
+        // failure worth shouting about. The pairing is offered instead.
+        setPhase("waiting");
+        return;
+      }
+
+      const idToken = idTokenFromRedirect(result.url);
+
+      if (!idToken) {
+        setPhase("waiting");
+        return;
+      }
+
+      const session = await exchangeGoogleToken(idToken);
+
+      await saveSession(session.token, session.user.email);
+      setPhase("connected");
+      onSignedIn(session.token, session.user.email);
+    } catch {
+      // Anything at all - no Google Play Services, no network, a token the shop
+      // refused. The browser pairing is right there and is known to work.
+      setPhase("waiting");
+    }
+  }, [onSignedIn]);
 
   /**
    * Open the browser at the pairing page.
@@ -253,12 +325,25 @@ export function SignInScreen({
       <View style={styles.card}>
         <Text style={styles.title}>Could not sign in</Text>
         <Text style={styles.body}>{error}</Text>
+
+        {/* Both routes offered, not just a retry of the one that failed. The
+            native path can fail for reasons retrying will not fix - no Play
+            Services, a token the shop refuses - and the pairing always works. */}
         <Pressable
-          onPress={() => void startPairing()}
+          onPress={() => void signInNatively()}
           style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
           accessibilityRole="button"
         >
-          <Text style={styles.buttonText}>Try again</Text>
+          <GoogleMark />
+          <Text style={styles.buttonText}>Continue with Google</Text>
+        </Pressable>
+
+        <Pressable
+          onPress={() => void openBrowser()}
+          style={styles.linkButton}
+          accessibilityRole="button"
+        >
+          <Text style={styles.linkText}>Sign in with a browser instead</Text>
         </Pressable>
       </View>
     );
@@ -272,17 +357,17 @@ export function SignInScreen({
       </Text>
 
       <Pressable
-        onPress={() => void openBrowser()}
-        disabled={phase === "starting"}
+        onPress={() => void signInNatively()}
+        disabled={phase === "starting" || phase === "native"}
         style={({ pressed }) => [
           styles.button,
-          phase === "starting" && styles.buttonDisabled,
+          (phase === "starting" || phase === "native") && styles.buttonDisabled,
           pressed && styles.buttonPressed,
         ]}
         accessibilityRole="button"
         accessibilityLabel="Continue with Google"
       >
-        {phase === "starting" ? (
+        {phase === "starting" || phase === "native" ? (
           <ActivityIndicator size="small" color={theme.white} />
         ) : (
           <>
@@ -291,6 +376,23 @@ export function SignInScreen({
           </>
         )}
       </Pressable>
+
+      {/*
+        The fallback, shown once the primary path has had its chance. It is not a
+        leftover from before native sign-in existed - it is the only path that works
+        when Google Play Services is missing, the network is captive-portal wifi, or
+        a token comes back the shop will not accept. A sign-in button with nothing
+        behind it is a dead end.
+      */}
+      {phase === "waiting" ? (
+        <Pressable
+          onPress={() => void openBrowser()}
+          style={styles.linkButton}
+          accessibilityRole="button"
+        >
+          <Text style={styles.linkText}>Sign in with a browser instead</Text>
+        </Pressable>
+      ) : null}
 
       {phase === "waiting" ? (
         <View style={styles.waitingRow}>
@@ -302,7 +404,7 @@ export function SignInScreen({
       ) : null}
 
       <Text style={styles.footnote}>
-        Google opens in your browser. This app never sees your password.
+        This app never sees your Google password.
       </Text>
     </View>
   );
@@ -370,6 +472,14 @@ const styles = StyleSheet.create({
   buttonDisabled: { opacity: 0.7 },
   buttonText: { color: theme.white, fontWeight: "800", fontSize: 15 },
   mark: { width: 18, height: 18 },
+
+  linkButton: { marginTop: 14, padding: 6 },
+  linkText: {
+    color: theme.inkMuted,
+    fontSize: 13,
+    textAlign: "center",
+    textDecorationLine: "underline",
+  },
 
   waitingRow: {
     flexDirection: "row",

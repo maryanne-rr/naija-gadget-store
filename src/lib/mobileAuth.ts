@@ -65,15 +65,28 @@ export interface GoogleIdentity {
  * EVERY claim here is checked, and the checks are the point. Verifying only the
  * signature would accept a token minted for a completely different application -
  * any token Google ever issued to anyone, replayed at this endpoint. The audience
- * check is what binds the token to THIS shop, and it is why the app must use the
- * same client id as the website rather than a second one.
+ * check is what binds the token to THIS shop.
+ *
+ * WHICH AUDIENCES COUNT
+ * The website's client, and the Android client the app signs in with. Both belong
+ * to this application in this Google Cloud project, and both end up here doing the
+ * identical thing, so accepting either does not widen who can sign in - only which
+ * client may ask. Anything else is refused, which is what stops a token minted for
+ * some unrelated app being replayed at this endpoint.
+ *
+ * jose takes an array here, which is a far better fit than a hand-built pattern -
+ * no escaping to get wrong, and the comparison is exact by construction.
  *
  * `email_verified` is required. Without it a token for an unverified address
  * would create a users row and a cart that the real owner of that address could
  * never see or claim.
  */
 export async function verifyGoogleIdToken(idToken: string): Promise<GoogleIdentity> {
-  if (!env.googleClientId) {
+  const audiences = [env.googleClientId, env.googleAndroidClientId].filter(
+    (value): value is string => Boolean(value),
+  );
+
+  if (audiences.length === 0) {
     throw new MobileAuthError(
       "Google sign-in is not configured on the server.",
       "google-not-configured",
@@ -84,7 +97,7 @@ export async function verifyGoogleIdToken(idToken: string): Promise<GoogleIdenti
   try {
     ({ payload } = await jwtVerify(idToken, googleKeys, {
       issuer: GOOGLE_ISSUERS,
-      audience: env.googleClientId,
+      audience: audiences,
     }));
   } catch (error) {
     // Deliberately does not include the error's message in the client-facing

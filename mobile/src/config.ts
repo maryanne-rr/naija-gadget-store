@@ -27,3 +27,18 @@ export const CART_POLL_MS = 5000;
  * hammering the server.
  */
 export const PAIR_POLL_MS = 2000;
+
+/**
+ * The custom scheme, and where Google sends the browser back to.
+ *
+ * MUST MATCH "scheme" IN app.json. That field is what makes Android build an
+ * intent filter, so a mismatch here means the browser finishes signing in and
+ * then has nowhere to return to - the symptom being a spinner that never
+ * resolves, with nothing in any log.
+ *
+ * Duplicated rather than imported because app.json is a build-time config file
+ * and this is app code. They cannot share a value, so they are written next to
+ * each other and checked in one place instead.
+ */
+export const APP_SCHEME = "naija";
+export const GOOGLE_REDIRECT_PATH = "callback";
