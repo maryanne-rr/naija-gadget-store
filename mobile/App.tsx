@@ -106,23 +106,6 @@ function Shop() {
     tokenRef.current = token;
   }, [token]);
 
-  // Restore an existing session and load the guest basket, so the app is never a
-  // blank frame and never flashes an empty basket somebody already had.
-  useEffect(() => {
-    (async () => {
-      const [storedToken, storedEmail] = await Promise.all([readToken(), readEmail()]);
-
-      if (storedToken) {
-        setToken(storedToken);
-        setEmail(storedEmail);
-      } else {
-      }
-
-      setCartLoading(false);
-      setBooting(false);
-    })();
-  }, []);
-
   /** Re-read whichever cart applies: the server's, or this device's. */
   const refreshCart = useCallback(async () => {
     const current = tokenRef.current;
@@ -146,6 +129,37 @@ function Shop() {
       setCartLoading(false);
     }
   }, []);
+
+  /**
+   * Restore an existing session and load whichever basket applies.
+   *
+   * Declared AFTER refreshCart rather than before, so it can call it. Loading the
+   * guest basket here matters more than it looks: the polling effect below returns
+   * early for a signed-out visitor, so this is the only thing that reads the
+   * device basket at launch. Without it, somebody who added three things
+   * yesterday force-closes the app, reopens it, and is shown an empty basket with
+   * no way to tell that apart from having lost their shopping.
+   *
+   * It calls refreshCart rather than loadGuestCart directly, because only
+   * refreshCart puts the result into `cart` state - loadGuestCart fills a module
+   * variable that nothing renders from.
+   */
+  useEffect(() => {
+    (async () => {
+      const [storedToken, storedEmail] = await Promise.all([readToken(), readEmail()]);
+
+      if (storedToken) {
+        tokenRef.current = storedToken;
+        setToken(storedToken);
+        setEmail(storedEmail);
+      }
+
+      await refreshCart();
+
+      setCartLoading(false);
+      setBooting(false);
+    })();
+  }, [refreshCart]);
 
   // Poll the server cart while the app is in the foreground. A signed-out visitor
   // has nothing to poll - their basket is on the device and cannot change until

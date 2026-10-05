@@ -61,23 +61,11 @@ function parse(raw: string): CartItem[] {
   }
 }
 
-let cached: string | null = null;
 let items: CartItem[] = [];
-
-/** Synchronous read, so a render never has to await storage. */
-export function guestCartSnapshot(): CartItem[] {
-  if (cached === null) {
-    // Left empty until load() resolves. A render cannot await, and rendering an
-    // empty basket for one frame beats rendering nothing at all.
-    cached = "[]";
-  }
-  return items;
-}
 
 export async function loadGuestCart(): Promise<CartItem[]> {
   try {
     const raw = (await AsyncStorage.getItem(KEY)) ?? "[]";
-    cached = raw;
     items = parse(raw);
   } catch {
     items = [];
@@ -97,7 +85,6 @@ async function save(next: CartItem[]): Promise<CartItem[]> {
   items = next;
   try {
     const raw = JSON.stringify(next);
-    cached = raw;
     await AsyncStorage.setItem(KEY, raw);
   } catch {
     // Quota exceeded or storage unavailable. The basket still works for this
@@ -168,7 +155,6 @@ export function guestCartLines(): { productId: string; quantity: number }[] {
 /** Fold a guest basket into the signed-in server one, then forget it. */
 export async function forgetGuestCart(): Promise<void> {
   items = [];
-  cached = "[]";
   try {
     await AsyncStorage.removeItem(KEY);
   } catch {
