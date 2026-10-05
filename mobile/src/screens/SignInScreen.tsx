@@ -45,7 +45,21 @@ import { theme } from "../theme";
  * See supabase/006-device-pairing.sql for why the code is a credential-adjacent
  * secret and why the claim secret exists.
  */
-export function SignInScreen({ onSignedIn }: { onSignedIn: (token: string) => void }) {
+/**
+ * Hands the token AND the email back.
+ *
+ * The email is not decoration. AccountScreen decides signed-in versus signed-out
+ * from it, and it is what the header shows. Passing only the token left the email
+ * null after pairing, so the screen never left the sign-in branch - which is
+ * exactly what happened: the app said "Signed in. Opening the shop..." and sat
+ * there for eight minutes because something above it still believed nobody was
+ * signed in.
+ */
+export function SignInScreen({
+  onSignedIn,
+}: {
+  onSignedIn: (token: string, email: string | null) => void;
+}) {
   const [phase, setPhase] = useState<"starting" | "waiting" | "connected" | "error">(
     "starting",
   );
@@ -177,7 +191,7 @@ export function SignInScreen({ onSignedIn }: { onSignedIn: (token: string) => vo
           // order leaves a device that forgets on restart.
           await saveSession(result.token, result.user.email);
           setPhase("connected");
-          onSignedIn(result.token);
+          onSignedIn(result.token, result.user.email);
           return;
         }
 

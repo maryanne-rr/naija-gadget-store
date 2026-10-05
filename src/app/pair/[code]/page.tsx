@@ -49,37 +49,42 @@ export default async function PairPage({ params }: PageProps<"/pair/[code]">) {
           📱
         </p>
 
-        <h1 className="mt-4 text-2xl font-bold tracking-tight">Connect a device</h1>
-
-        <p className="mt-3 rounded-lg bg-ink-100 px-4 py-3 font-mono text-2xl font-bold tracking-widest dark:bg-ink-700">
-          {normalised}
-        </p>
+        <h1 className="mt-4 text-2xl font-bold tracking-tight">
+          {userId && account ? "Connect a device" : "Sign in to connect"}
+        </h1>
 
         {userId && account ? (
           <>
+            {/* The code is only shown once somebody is signed in, and only as a
+                confirmation that they connected the device they meant to.
+
+                It used to be the first thing on the page, signed out or not. That
+                put an eight-character code in front of someone who had opened a
+                link from their phone and simply wanted to pick an account - which
+                read as though the app were still asking them to do the typing the
+                app already did for them. */}
             <p className="mt-4 text-sm text-ink-600 dark:text-ink-300">
               This will let the phone signed in as
             </p>
             <p className="mt-1 font-semibold">{account}</p>
-            <p className="mt-3 text-sm text-ink-500">
-              use your cart and your orders. It signs in with this account only — it
-              cannot see your Google password.
+            <p className="mt-1 font-mono text-xs tracking-widest text-ink-400">
+              {normalised}
             </p>
 
             <ApproveDeviceButton code={normalised} />
           </>
         ) : (
           <>
-            <p className="mt-4 text-ink-500">
-              Sign in with the same Google account you use on the website, and this
-              phone will share your cart with it.
+            <p className="mt-3 text-ink-500">
+              Choose the same Google account you use on the website. Your phone is
+              waiting — there is nothing to type.
             </p>
 
             <div className="mt-6">
               <GoogleSignInButton
                 label="Continue with Google"
-                // Comes back to THIS page after sign-in, so the code is still in
-                // front of them rather than lost on the homepage.
+                // Comes back to THIS page after sign-in, so the Connect button is
+                // waiting. The code never leaves the URL.
                 redirectTo={`/pair/${normalised}`}
                 className="w-full rounded-lg border border-ink-300 px-5 py-2.5 font-semibold hover:bg-ink-100 dark:border-ink-600 dark:hover:bg-ink-700"
               />

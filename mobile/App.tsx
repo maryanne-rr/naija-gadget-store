@@ -227,17 +227,24 @@ function Shop() {
   /**
    * Signed in. Move the device basket across, then adopt the token.
    *
+   * The email comes up from SignInScreen rather than being read back out of
+   * SecureStore afterwards, because AccountScreen and the header both decide
+   * signed-in from it. Setting only the token left email null, and the app sat on
+   * "Signed in. Opening the shop..." indefinitely - the session was perfectly
+   * valid and nothing above it could see it.
+   *
    * The merge runs BEFORE setToken, deliberately: guestCartLines() reads the
    * device basket, and switching modes first would leave nothing to merge. If the
-   * merge fails the token is still adopted - a signed-in person with an empty cart
-   * is a far better outcome than staying signed out with no way forward.
+   * merge fails the session is still adopted - a signed-in person with an empty
+   * cart is a far better outcome than staying signed out with no way forward.
    */
   const handleSignedIn = useCallback(
-    async (freshToken: string) => {
+    async (freshToken: string, freshEmail: string | null) => {
       const lines = guestCartLines();
 
-      setToken(freshToken);
       tokenRef.current = freshToken;
+      setToken(freshToken);
+      setEmail(freshEmail);
 
       if (lines.length > 0) {
         try {
@@ -250,6 +257,11 @@ function Shop() {
       }
 
       await refreshCart();
+
+      // The screen said "Opening the shop...", so it had better actually open it.
+      // Sitting on the Account tab after signing in reads as though nothing
+      // happened, even though everything did.
+      setTab("shop");
     },
     [refreshCart],
   );
@@ -321,7 +333,7 @@ function Shop() {
             <AccountScreen
               email={email}
               cartCount={cart.count}
-              onSignIn={(fresh) => void handleSignedIn(fresh)}
+              onSignIn={(freshToken, freshEmail) => void handleSignedIn(freshToken, freshEmail)}
               onSignOut={() => void signOut()}
             />
           )}

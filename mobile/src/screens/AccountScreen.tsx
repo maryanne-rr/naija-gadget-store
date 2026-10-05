@@ -27,8 +27,15 @@ export function AccountScreen({
 }: {
   email: string | null;
   cartCount: number;
-  /** Hands the new token back so the app can start polling the server cart. */
-  onSignIn: (token: string) => void;
+  /**
+   * Hands the token and email back so the app can start polling the server cart.
+   *
+   * Both are needed. The email is what AccountScreen and the header decide
+   * signed-in from, so passing only the token leaves this component rendering the
+   * sign-in branch forever - which is precisely the bug where the app said
+   * "Signed in. Opening the shop..." and never opened it.
+   */
+  onSignIn: (token: string, email: string | null) => void;
   onSignOut: () => void;
 }) {
   if (!email) {
