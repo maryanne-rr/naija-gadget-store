@@ -421,7 +421,9 @@ const styles = StyleSheet.create({
   headerText: { flex: 1, minWidth: 0 },
   wordmark: { fontSize: 19, fontWeight: "800", color: theme.white, letterSpacing: -0.3 },
   email: { fontSize: 11, color: "#a9adc8", marginTop: 1 },
-  headerButton: { paddingVertical: 8, paddingLeft: 10 },
+  // minHeight 44 for the same reason as every other control. Padding alone left
+  // this one at 33px, measured in a browser rather than guessed at.
+  headerButton: { paddingVertical: 8, paddingLeft: 10, minHeight: 44, justifyContent: "center" },
   headerButtonText: {
     color: "#c9cdf0",
     fontSize: 13,

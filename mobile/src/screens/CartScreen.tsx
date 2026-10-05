@@ -251,7 +251,17 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   introText: { fontSize: 12.5, color: theme.inkMuted, fontWeight: "600", flex: 1 },
-  clearButton: { paddingVertical: 4, paddingHorizontal: 4 },
+  // Caught by measuring the rendered app rather than by reading the styles: this
+  // looked like padding in the source and came out 38x25 on screen. It empties
+  // the whole basket, so it is the last control that should be hard to hit by
+  // accident.
+  clearButton: {
+    minHeight: 44,
+    minWidth: 44,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    justifyContent: "center",
+  },
   clearText: { fontSize: 12.5, fontWeight: "700", color: theme.red },
 
   line: {
@@ -292,14 +302,20 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderColor: theme.line,
   },
-  remove: { paddingVertical: 6, paddingHorizontal: 4 },
+  // minHeight rather than padding: the label is small, so padding alone leaves
+  // the target under the 44px line. A destructive control that is hard to hit is
+  // safer, but one that is hard to hit on purpose is just annoying.
+  remove: { paddingVertical: 12, paddingHorizontal: 8, minHeight: 44, justifyContent: "center" },
   pressed: { opacity: 0.5 },
   removeText: { fontSize: 13, fontWeight: "600", color: theme.red },
 
   stepper: { flexDirection: "row", alignItems: "center", gap: 6 },
   stepButton: {
-    width: 34,
-    height: 34,
+    // 44px square. This was 34px, and it is the control a mis-tap actually costs
+    // something: a tap that lands slightly off changes an order quantity rather
+    // than failing visibly.
+    width: 44,
+    height: 44,
     borderRadius: theme.radius,
     borderWidth: 1,
     borderColor: theme.line,

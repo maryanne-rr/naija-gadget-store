@@ -412,10 +412,15 @@ const styles = StyleSheet.create({
   addButton: {
     backgroundColor: theme.brand,
     borderRadius: 999,
-    paddingVertical: 10,
-    paddingHorizontal: 18,
-    minWidth: 62,
+    // 44px minimum, which is what Apple and Google both specify for a touch
+    // target and what the thumb actually needs. This was 37px and it was the
+    // most-tapped control in the app.
+    minHeight: 44,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    minWidth: 68,
     alignItems: "center",
+    justifyContent: "center",
   },
   addButtonPressed: { backgroundColor: theme.brandBright },
   addButtonDisabled: { backgroundColor: "#c3c6d2" },
