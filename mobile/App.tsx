@@ -8,42 +8,60 @@ import {
   Text,
   View,
 } from "react-native";
-import {
-  SafeAreaProvider,
-  useSafeAreaInsets,
-} from "react-native-safe-area-context";
-import { fetchCart, type Cart } from "./src/api";
+import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
+import { fetchCart, mergeGuestCart, updateCart, type Cart, type CartItem } from "./src/api";
 import { CART_POLL_MS } from "./src/config";
+import {
+  forgetGuestCart,
+  guestAdd,
+  guestCartLines,
+  guestClear,
+  guestSetQuantity,
+  loadGuestCart,
+} from "./src/guestCart";
 import { clearSession, readEmail, readToken } from "./src/storage";
 import { theme } from "./src/theme";
-import { SignInScreen } from "./src/screens/SignInScreen";
 import { ShopScreen } from "./src/screens/ShopScreen";
 import { CartScreen } from "./src/screens/CartScreen";
+import { AccountScreen } from "./src/screens/AccountScreen";
 
 /**
  * Naija Gadgets - the mobile app.
  *
  * IT IS THE SAME SHOP
- * There is no local database, no second cart and no separate login. Every read
+ * There is no local database, no second login and no separate login. Every read
  * and write goes to the website's own API:
  *
- *   GET    /api/products              the catalogue
+ *   GET    /api/products              the catalogue - public, no sign-in needed
  *   GET    /api/cart                  the basket
  *   POST   /api/cart                  add, or set a quantity
+ *   PUT    /api/cart                  fold a guest basket into the signed-in one
  *   POST   /api/mobile/pair           start sign-in
  *   GET    /api/mobile/pair/<code>    collect the token once approved
  *
- * Signing in happens through the website's own Auth.js session (see
- * SignInScreen), so the phone ends up holding a bearer token for the same
- * users.id the browser has - and cart_items.user_id is that id. That is why the
- * cart follows you across rather than merely looking similar on both.
+ * SIGNING IN HAPPENS THROUGH A BROWSER, ONCE, AND IS NOT A GATE
+ * See SignInScreen for why. The important part here is that it is not a gate: the
+ * shop, the prices and the photos are all reachable with no account at all, and a
+ * signed-out visitor gets a real basket on the device.
+ *
+ * That mirrors the website exactly. CartProvider keeps a guest basket in
+ * localStorage and switches to the database on sign-in; this app keeps one in
+ * AsyncStorage and does the same. Same rule, two clients - which is most of why
+ * they feel like one shop rather than an app that bolted onto a website.
+ *
+ * THE MERGE AT SIGN-IN IS THE INTERESTING PART
+ * Somebody fills a basket signed out, then signs in. Those items belong to the
+ * account they are about to have. Uploading them blindly would double anything
+ * already on the server, so PUT /api/cart sums quantities and caps them at the
+ * stock on hand - in the database, atomically. Then the device basket is deleted,
+ * or the next sign-in would merge it a second time.
  *
  * WHY THE CART POLLS
  * "Instantly appear" has to mean instant. Polling every five seconds is the
  * honest version of that without standing up a websocket or a Supabase Realtime
  * subscription: it is well inside what a person perceives as immediate, and it
- * costs one small GET. The alternative - Supabase Realtime - would put a database
- * credential in the app, which is the one thing this design refuses to do.
+ * costs one small GET. The alternative - Realtime - would put a database
+ * credential in the app, which this design refuses to do.
  *
  * The poll pauses while the app is backgrounded, so a phone in a pocket is not
  * waking the radio every five seconds.
@@ -60,16 +78,19 @@ export default function App() {
   );
 }
 
+type Tab = "shop" | "cart" | "account";
+
 function Shop() {
   const [token, setToken] = useState<string | null>(null);
   const [email, setEmail] = useState<string | null>(null);
   const [booting, setBooting] = useState(true);
-  const [tab, setTab] = useState<"shop" | "cart">("shop");
+  const [tab, setTab] = useState<Tab>("shop");
   const [cart, setCart] = useState<Cart>({ items: [], count: 0, subtotal: 0 });
   const [cartLoading, setCartLoading] = useState(true);
+  /** Bumped to re-render after a guest-basket write, which lives outside React. */
 
-  // Same reason as in SignInScreen: the polling effect reads this, and putting it
-  // in state would restart the interval on every render.
+  // Same reason as elsewhere: the polling effect reads this, and putting it in
+  // state would restart the interval on every render.
   const tokenRef = useRef<string | null>(null);
 
   // Measured, not hard-coded. A phone with a notch and a phone without one need
@@ -85,8 +106,8 @@ function Shop() {
     tokenRef.current = token;
   }, [token]);
 
-  // Restore an existing session on launch, so the app does not ask for pairing
-  // every time it is opened.
+  // Restore an existing session and load the guest basket, so the app is never a
+  // blank frame and never flashes an empty basket somebody already had.
   useEffect(() => {
     (async () => {
       const [storedToken, storedEmail] = await Promise.all([readToken(), readEmail()]);
@@ -94,15 +115,27 @@ function Shop() {
       if (storedToken) {
         setToken(storedToken);
         setEmail(storedEmail);
+      } else {
       }
 
+      setCartLoading(false);
       setBooting(false);
     })();
   }, []);
 
+  /** Re-read whichever cart applies: the server's, or this device's. */
   const refreshCart = useCallback(async () => {
     const current = tokenRef.current;
-    if (!current) return;
+
+    if (!current) {
+      const items = await loadGuestCart();
+      setCart({
+        items,
+        count: items.reduce((total, item) => total + item.quantity, 0),
+        subtotal: items.reduce((total, item) => total + item.price * item.quantity, 0),
+      });
+      return;
+    }
 
     try {
       setCart(await fetchCart(current));
@@ -114,7 +147,9 @@ function Shop() {
     }
   }, []);
 
-  // Poll the cart while the app is in the foreground.
+  // Poll the server cart while the app is in the foreground. A signed-out visitor
+  // has nothing to poll - their basket is on the device and cannot change until
+  // they touch it.
   useEffect(() => {
     if (!token) return;
 
@@ -133,13 +168,103 @@ function Shop() {
     return () => clearInterval(timer);
   }, [token, refreshCart]);
 
+  /**
+   * Add to whichever cart applies.
+   *
+   * THE POINT OF THE WHOLE SPLIT
+   * Signed in, this is a server round trip and the answer redraws the row.
+   * Signed out, it writes the device basket and re-renders. Either way the Add
+   * button works - which it did not before, when it was only reachable behind a
+   * login.
+   */
+  const addToCart = useCallback(
+    async (line: Omit<CartItem, "quantity">, quantity = 1) => {
+      const current = tokenRef.current;
+
+      if (current) {
+        await updateCart(current, line.productId, quantity, "add");
+      } else {
+        await guestAdd(line, quantity);
+      }
+
+      await refreshCart();
+    },
+    [refreshCart],
+  );
+
+  const setQuantity = useCallback(
+    async (productId: string, quantity: number) => {
+      const current = tokenRef.current;
+
+      if (current) {
+        await updateCart(current, productId, quantity, "set");
+      } else {
+        await guestSetQuantity(productId, quantity);
+      }
+
+      await refreshCart();
+    },
+    [refreshCart],
+  );
+
+  const clearCart = useCallback(async () => {
+    const current = tokenRef.current;
+
+    if (current) {
+      // Zeroing each line is clearer than DELETE, which empties the whole basket
+      // and would discard anything added in the last few seconds by another
+      // device.
+      for (const item of cart.items) {
+        await updateCart(current, item.productId, 0, "set");
+      }
+    } else {
+      await guestClear();
+    }
+
+    await refreshCart();
+  }, [cart.items, refreshCart]);
+
+  /**
+   * Signed in. Move the device basket across, then adopt the token.
+   *
+   * The merge runs BEFORE setToken, deliberately: guestCartLines() reads the
+   * device basket, and switching modes first would leave nothing to merge. If the
+   * merge fails the token is still adopted - a signed-in person with an empty cart
+   * is a far better outcome than staying signed out with no way forward.
+   */
+  const handleSignedIn = useCallback(
+    async (freshToken: string) => {
+      const lines = guestCartLines();
+
+      setToken(freshToken);
+      tokenRef.current = freshToken;
+
+      if (lines.length > 0) {
+        try {
+          await mergeGuestCart(freshToken, lines);
+          await forgetGuestCart();
+        } catch {
+          // Leave the device basket in place. It is not lost, and the next
+          // sign-in will try again.
+        }
+      }
+
+      await refreshCart();
+    },
+    [refreshCart],
+  );
+
   const signOut = useCallback(async () => {
     await clearSession();
     setToken(null);
     setEmail(null);
-    setCart({ items: [], count: 0, subtotal: 0 });
+    // A fresh device basket rather than the server one: signing out must not leave
+    // the previous account's items on the phone, and must not show the next person
+    // somebody else's basket.
+    await guestClear();
+    await refreshCart();
     setTab("shop");
-  }, []);
+  }, [refreshCart]);
 
   if (booting) {
     return (
@@ -149,30 +274,11 @@ function Shop() {
     );
   }
 
-  if (!token) {
-    return (
-      <>
-        <StatusBar barStyle="dark-content" backgroundColor={theme.canvas} />
-        <View style={[styles.fill, { paddingTop: insets.top + 12 }]}>
-          {/* The token comes back from pairing rather than being read out of
-              SecureStore again. Reading it happens once, at launch, so wiring
-              this to a refresh left a freshly approved phone sitting on the
-              sign-in screen until it was force-closed and reopened. */}
-          <SignInScreen
-            onSignedIn={(fresh) => {
-              setToken(fresh);
-              void refreshCart();
-            }}
-          />
-        </View>
-      </>
-    );
-  }
-
-  // productId -> quantity, so each row in the shop can show what is already in the
-  // basket. Derived rather than stored, because it has no state of its own worth
-  // keeping in step with anything.
-  const cartCount = new Map(cart.items.map((item) => [item.productId, item.quantity]));
+  // productId -> quantity, so each row can show "N in cart". Derived rather than
+  // stored: it has no state of its own worth keeping in step with anything.
+  const cartCount = new Map(
+    cart.items.map((item) => [item.productId, item.quantity] as const),
+  );
 
   return (
     <>
@@ -181,36 +287,42 @@ function Shop() {
         <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
           <View style={styles.headerText}>
             <Text style={styles.wordmark}>Naija Gadgets</Text>
-            {email ? (
-              <Text style={styles.email} numberOfLines={1}>
-                {email}
-              </Text>
-            ) : null}
+            <Text style={styles.email} numberOfLines={1}>
+              {email ?? "Browsing — sign in to sync your cart"}
+            </Text>
           </View>
 
           {/* The extra right padding is not decoration. Expo Go floats a
               development button in the top-right corner, and it sits directly on
-              top of Sign out - so in a demo the control you need is under the one
-              you do not. Leaving room costs nothing in a build and makes the
-              development build usable. */}
+              top of anything placed there - so in a demo the control you need is
+              under the one you do not. Leaving room costs nothing in a build. */}
           <Pressable
-            onPress={() => void signOut()}
-            style={styles.signOutButton}
+            onPress={() => setTab("account")}
+            style={styles.headerButton}
             accessibilityRole="button"
+            accessibilityLabel={email ? "Account" : "Sign in"}
           >
-            <Text style={styles.signOut}>Sign out</Text>
+            <Text style={styles.headerButtonText}>{email ? "Account" : "Sign in"}</Text>
           </Pressable>
         </View>
 
         <View style={styles.fill}>
           {tab === "shop" ? (
-            <ShopScreen token={token} cartCount={cartCount} onCartChanged={() => void refreshCart()} />
-          ) : (
+            <ShopScreen cartCount={cartCount} onAdd={addToCart} />
+          ) : tab === "cart" ? (
             <CartScreen
               cart={cart}
-              token={token}
               loading={cartLoading}
-              onChanged={() => void refreshCart()}
+              signedIn={Boolean(token)}
+              onChangeQuantity={setQuantity}
+              onClear={() => void clearCart()}
+            />
+          ) : (
+            <AccountScreen
+              email={email}
+              cartCount={cart.count}
+              onSignIn={(fresh) => void handleSignedIn(fresh)}
+              onSignOut={() => void signOut()}
             />
           )}
         </View>
@@ -222,6 +334,11 @@ function Shop() {
             label={cart.count > 0 ? `Cart (${cart.count})` : "Cart"}
             active={tab === "cart"}
             onPress={() => setTab("cart")}
+          />
+          <Tab
+            label="Account"
+            active={tab === "account"}
+            onPress={() => setTab("account")}
           />
         </View>
       </View>
@@ -253,7 +370,12 @@ function Tab({
 
 const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: theme.canvas },
-  booting: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: theme.canvas },
+  booting: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.canvas,
+  },
 
   header: {
     flexDirection: "row",
@@ -261,22 +383,20 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     backgroundColor: theme.ink,
     paddingLeft: 16,
-    // Room on the right for Expo Go's floating development button. 60px was not
-    // enough - the screenshot still showed "Sign ou" with the button sitting on
-    // the last letter - so the label is given its own padding and the button is
-    // pushed clear rather than being overlapped and left untappable.
+    // Room on the right for Expo Go's floating development button, which
+    // otherwise sits on top of whatever is placed there.
     paddingRight: 78,
     paddingBottom: 14,
     gap: 10,
   },
-  // flex: 1 on the text block is what stops the wordmark pushing "Sign out" off
+  // flex: 1 on the text block is what stops the wordmark pushing the button off
   // the edge on a narrow phone. The email is allowed to shrink and ellipsize for
   // the same reason - a long address must not steal the button's space.
   headerText: { flex: 1, minWidth: 0 },
   wordmark: { fontSize: 19, fontWeight: "800", color: theme.white, letterSpacing: -0.3 },
   email: { fontSize: 11, color: "#a9adc8", marginTop: 1 },
-  signOutButton: { paddingVertical: 8, paddingLeft: 10 },
-  signOut: {
+  headerButton: { paddingVertical: 8, paddingLeft: 10 },
+  headerButtonText: {
     color: "#c9cdf0",
     fontSize: 13,
     fontWeight: "600",

@@ -8,7 +8,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { updateCart, type Cart, type CartItem } from "../api";
+import type { Cart, CartItem } from "../api";
 import { formatNaira } from "../format";
 import { theme } from "../theme";
 
@@ -33,34 +33,39 @@ import { theme } from "../theme";
  */
 export function CartScreen({
   cart,
-  token,
   loading,
-  onChanged,
+  signedIn,
+  onChangeQuantity,
+  onClear,
 }: {
   cart: Cart;
-  token: string;
   loading: boolean;
-  onChanged: () => void;
+  /** Changes the wording, not the behaviour. See the note in the footer. */
+  signedIn: boolean;
+  /**
+   * Set an exact quantity, wherever the basket lives.
+   *
+   * App owns the choice between the database and the device, so a signed-out
+   * visitor gets a working stepper rather than a disabled one. A quantity of zero
+   * removes the line on both sides - the same rule the website uses.
+   */
+  onChangeQuantity: (productId: string, quantity: number) => Promise<void>;
+  onClear: () => void;
 }) {
   const [busy, setBusy] = useState<string | null>(null);
 
   const change = useCallback(
     async (productId: string, quantity: number) => {
       setBusy(productId);
-
       try {
-        // mode "set": the stepper means exactly this many, not this many more.
-        await updateCart(token, productId, quantity, "set");
-        onChanged();
+        await onChangeQuantity(productId, quantity);
       } catch {
-        // The poll in App.tsx will redraw from the server shortly, which is
-        // enough to recover without a second error path for the user to read.
-        onChanged();
-      } finally {
+        // A failed stepper tap must not leave the number spinning. The next
+        // refresh draws the truth, whatever the server says it is.
         setBusy(null);
       }
     },
-    [token, onChanged],
+    [onChangeQuantity],
   );
 
   if (loading && cart.items.length === 0) {
@@ -79,24 +84,24 @@ export function CartScreen({
         </View>
         <Text style={styles.emptyTitle}>Your cart is empty</Text>
         <Text style={styles.body}>
-          Add something here and it appears on the website straight away — and the
-          other way round. Both devices read the same rows.
+          {signedIn
+            ? "Add something here and it appears on the website straight away — and the other way round. Both devices read the same rows."
+            : "Add something and it stays on this phone. Sign in later and we'll move it across — nothing gets lost."}
         </Text>
       </View>
     );
   }
 
-  const savings = cart.items.reduce((total, item) => {
-    return total + item.price * item.quantity;
-  }, 0);
-
   return (
     <View style={styles.screen}>
       <View style={styles.intro}>
         <Text style={styles.introText}>
-          {cart.count === 1 ? "1 item" : `${cart.count} items`} · shared with your
-          website cart
+          {cart.count === 1 ? "1 item" : `${cart.count} items`} ·{" "}
+          {signedIn ? "shared with your website cart" : "saved on this phone"}
         </Text>
+        <Pressable onPress={onClear} style={styles.clearButton} accessibilityRole="button">
+          <Text style={styles.clearText}>Clear</Text>
+        </Pressable>
       </View>
 
       <SectionList
@@ -116,7 +121,7 @@ export function CartScreen({
       <View style={styles.footer}>
         <View style={styles.totalRow}>
           <Text style={styles.totalLabel}>Subtotal</Text>
-          <Text style={styles.totalValue}>{formatNaira(savings)}</Text>
+          <Text style={styles.totalValue}>{formatNaira(cart.subtotal)}</Text>
         </View>
 
         <View style={styles.totalRow}>
@@ -236,8 +241,18 @@ const styles = StyleSheet.create({
   },
   list: { padding: 14, paddingBottom: 12 },
 
-  intro: { paddingHorizontal: 18, paddingTop: 14, paddingBottom: 4 },
-  introText: { fontSize: 12.5, color: theme.inkMuted, fontWeight: "600" },
+  intro: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 18,
+    paddingTop: 14,
+    paddingBottom: 4,
+    gap: 12,
+  },
+  introText: { fontSize: 12.5, color: theme.inkMuted, fontWeight: "600", flex: 1 },
+  clearButton: { paddingVertical: 4, paddingHorizontal: 4 },
+  clearText: { fontSize: 12.5, fontWeight: "700", color: theme.red },
 
   line: {
     backgroundColor: theme.white,

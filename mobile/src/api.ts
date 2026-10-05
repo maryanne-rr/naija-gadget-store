@@ -147,6 +147,28 @@ export async function updateCart(
   });
 }
 
+/**
+ * Fold a guest basket into the signed-in one.
+ *
+ * Called once, at sign-in. Quantities are summed and capped at stock by the
+ * database, so merging cannot lose an item or create a line that cannot be
+ * bought - see /api/cart.
+ *
+ * Only ids and quantities go up. Names, prices and stock are re-read from the
+ * database, so a basket assembled days ago cannot carry its own idea of what
+ * things cost.
+ */
+export async function mergeGuestCart(
+  token: string,
+  lines: { productId: string; quantity: number }[],
+): Promise<Cart> {
+  if (lines.length === 0) {
+    return request<Cart>("/api/cart", { token });
+  }
+
+  return request<Cart>("/api/cart", { method: "PUT", token, body: { lines } });
+}
+
 /** Ask for a pairing code. Returns the code and the URL to open. */
 export async function createPairing(claimSecret: string): Promise<{
   code: string;

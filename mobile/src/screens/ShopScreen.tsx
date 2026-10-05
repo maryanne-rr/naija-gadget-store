@@ -8,7 +8,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { fetchProducts, updateCart, type Product } from "../api";
+import { fetchProducts, type CartItem, type Product } from "../api";
 import { discountPercent, formatNaira } from "../format";
 import { theme } from "../theme";
 
@@ -37,14 +37,19 @@ import { theme } from "../theme";
  * reduced leads and the rest follow the category order in catalog.ts.
  */
 export function ShopScreen({
-  token,
   cartCount,
-  onCartChanged,
+  onAdd,
 }: {
-  token: string;
-  /** Lines already in the cart, so each row can show "In cart: 2". */
+  /** Lines already in the cart, so each row can show "2 in cart". */
   cartCount: Map<string, number>;
-  onCartChanged: () => void;
+  /**
+   * Add a line, wherever the basket lives.
+   *
+   * The screen does not know or care whether that is the database or the device,
+   * which is the point: signed in and signed out, Add does the same thing and the
+   * row redraws the same way. App owns the choice.
+   */
+  onAdd: (line: Omit<CartItem, "quantity">, quantity?: number) => Promise<void>;
 }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,17 +84,25 @@ export function ShopScreen({
       setBusy(product.id);
 
       try {
-        // The server decides the final quantity and caps it at the stock on hand.
-        // The button's own arithmetic is only there to stop pointless taps.
-        await updateCart(token, product.id, 1, "add");
-        onCartChanged();
+        await onAdd(
+          {
+            productId: product.id,
+            slug: product.slug,
+            name: product.name,
+            price: product.price,
+            emoji: product.emoji,
+            maxStock: product.stock,
+            imageUrl: product.imageUrl,
+          },
+          1,
+        );
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : "Could not add that.");
       } finally {
         setBusy(null);
       }
     },
-    [token, onCartChanged],
+    [onAdd],
   );
 
   if (loading) {

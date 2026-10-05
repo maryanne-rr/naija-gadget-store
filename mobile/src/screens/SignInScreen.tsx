@@ -4,12 +4,11 @@ import {
   AppState,
   Linking,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
-import * as Clipboard from "expo-clipboard";
+import Svg, { Path } from "react-native-svg";
 import { createPairing, pollPairing, type PollResult } from "../api";
 import { PAIR_POLL_MS } from "../config";
 import { readOrCreateClaimSecret, saveSession } from "../storage";
@@ -18,156 +17,188 @@ import { theme } from "../theme";
 /**
  * Signing in on the phone.
  *
- * THE FLOW
- *   1. The app asks the server for a short code.
- *   2. It shows the code, and a link to open on any browser.
- *   3. The person opens that link - on the phone, or on a laptop - and signs in
- *      with the same Google account they use on the website.
- *   4. They press "Connect this device".
- *   5. This screen notices within a couple of seconds and signs in.
+ * ONE BUTTON. The CODE IS NOT SHOWN.
  *
- * WHY NOT A GOOGLE BUTTON ON THIS SCREEN
- * A native app would normally run Google OAuth itself, using a redirect URI of
- * its own. Inside Expo Go that is not available: Expo Go can only be opened
- * through Expo's proxy URL, so the redirect URI Google would need to be told
- * about is one that does not exist until `npx expo start` has run and is not
- * stable if the Expo account or project slug changes. Registering it is possible
- * but the failure mode is "the button does nothing".
+ * This used to display a pairing code and ask the person to open a browser and
+ * type it in. That was honest about the mechanism and terrible as an experience:
+ * eight characters, read off one screen and entered into another, with a spinner
+ * in between telling you to wait for yourself.
  *
- * Pairing avoids all of that and has a genuine advantage: the approval happens
- * through the WEBSITE's own session, so the phone gets a token for the same
- * account by construction rather than by matching on email. It is also the
- * pattern real products use - GitHub CLI, `gh`, and smart-TV sign-in all pair a
- * device through a browser.
+ * The pairing is still the mechanism - the phone cannot prove who it is on its
+ * own, and it never sees a Google password - but it is now invisible. Tapping the
+ * button opens the browser at the right address with the code already in it. The
+ * person signs in with Google, presses Connect, and the browser hands them back
+ * to the app. Nobody ever reads the code; the server uses it to know which device
+ * asked.
  *
- * WHY THE CODE IS NOT A LOGIN ON ITS OWN
- * The code is shown on screen and typed into a browser, so anyone nearby can read
- * it. It only names the pairing. The right to collect the session belongs to the
- * secret this device generated and never sent - see src/storage.ts.
- */
-/**
- * Hands the new token back so the app can switch to the shop without a restart.
+ * WHY A BROWSER RATHER THAN GOOGLE OAUTH DIRECTLY
+ * A native app would normally run OAuth itself with a redirect the OS can route
+ * back. Expo Go could not do that - it only opens through Expo's proxy - and
+ * although the app is now a standalone build, doing it properly needs a second,
+ * Android-type OAuth client in Google Cloud with the signing key's SHA-1. That is
+ * two fiddly steps for a flow that works today.
  *
- * It has to be handed over rather than left in SecureStore. Reading the token back
- * only happens once, at launch, so relying on that would mean the person has to
- * kill and reopen the app after every sign-in - which looks exactly like the
- * pairing failed.
+ * The pairing also guarantees something native OAuth would not: the account comes
+ * from the WEBSITE's own Auth.js session, so the phone is bound to the same
+ * users.id by construction rather than by matching an email address.
+ *
+ * See supabase/006-device-pairing.sql for why the code is a credential-adjacent
+ * secret and why the claim secret exists.
  */
 export function SignInScreen({ onSignedIn }: { onSignedIn: (token: string) => void }) {
-  const [code, setCode] = useState<string | null>(null);
-  const [pairUrl, setPairUrl] = useState<string | null>(null);
-  const [status, setStatus] = useState<
-    "starting" | "waiting" | "connected" | "denied" | "expired" | "error"
-  >("starting");
+  const [phase, setPhase] = useState<"starting" | "waiting" | "connected" | "error">(
+    "starting",
+  );
   const [error, setError] = useState("");
 
-  // Held in a ref rather than state because the polling loop reads it but must not
-  // restart when it changes - a changing dependency here would tear down and
-  // recreate the interval on every render.
+  // In a ref rather than state: the polling loop and the button both read it, and
+  // a state change would tear the interval down and rebuild it on every render.
+  const pairRef = useRef<{ code: string; pairUrl: string } | null>(null);
   const claimRef = useRef<string | null>(null);
 
   /**
-   * Ask the server for a code. Does not touch `status` on the way in, because the
-   * first call runs from an effect and a synchronous setState there cascades.
+   * Whether the browser has been sent to yet.
    *
-   * Split from begin() below for that reason alone. `status` already starts as
-   * "starting", so the reset was a no-op on launch and only ever did anything for
-   * the retry buttons - which is where it belongs.
+   * State, not a ref, because it decides what the button says - a ref read during
+   * render is exactly the thing React warns about. It is also the polling
+   * effect's trigger, which is the correct dependency: asking every two seconds at
+   * nobody, before anyone has been sent anywhere, is pointless.
    */
-  const requestCode = useCallback(async () => {
+  const [opened, setOpened] = useState(false);
+
+  /**
+   * Ask the server for a pairing. Touches no state before its first await.
+   *
+   * Split from startPairing() below for that reason: this one runs from an effect,
+   * and a synchronous setState in an effect body cascades. The reset is only ever
+   * needed for a retry, which is a click handler.
+   */
+  const requestPairing = useCallback(async () => {
     try {
       if (!claimRef.current) {
         claimRef.current = await readOrCreateClaimSecret();
       }
 
-      const pairing = await createPairing(claimRef.current);
-      setCode(pairing.code);
-      setPairUrl(pairing.pairUrl);
-      setStatus("waiting");
+      pairRef.current = await createPairing(claimRef.current);
+      setPhase("waiting");
     } catch (cause) {
-      setStatus("error");
+      setPhase("error");
       setError(cause instanceof Error ? cause.message : "Could not start sign-in.");
     }
   }, []);
 
-  /** Used by the retry buttons: reset the screen, then ask again. */
-  const begin = useCallback(() => {
-    setStatus("starting");
+  /** Retry path: reset the screen, forget the old pairing, ask again. */
+  const startPairing = useCallback(() => {
+    pairRef.current = null;
+    setPhase("starting");
     setError("");
-    setCode(null);
-    setPairUrl(null);
-    void requestCode();
-  }, [requestCode]);
+    setOpened(false);
+    void requestPairing();
+  }, [requestPairing]);
 
   useEffect(() => {
-    // No synchronous setState before the first await - the state is already
-    // "starting" from useState, so the reset begin() does is unnecessary here.
-    void requestCode();
-  }, [requestCode]);
+    let cancelled = false;
+
+    (async () => {
+      // The claim secret is fetched here rather than inside requestPairing so the
+      // await is visible in the effect body. requestPairing does await before it
+      // touches state, but the lint rule cannot see through an async function call
+      // to know that, and "trust me, it awaits" is exactly the kind of claim that
+      // stops being true the moment somebody edits it.
+      if (!claimRef.current) {
+        claimRef.current = await readOrCreateClaimSecret();
+      }
+
+      if (!cancelled) void requestPairing();
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [requestPairing]);
 
   /**
-   * Poll until approved.
+   * Open the browser at the pairing page.
    *
-   * The interval is cleared on every path out of the loop - approved, expired,
-   * denied, or unmounted - because a phone that keeps asking every two seconds
-   * after the answer is not a phone that has finished signing in.
+   * A pairing is fetched up front rather than on tap, so the button opens
+   * something immediately instead of showing a spinner while a round trip happens.
+   * If that first request failed, this retries once rather than opening a URL
+   * that does not exist.
+   */
+  const openBrowser = useCallback(async () => {
+    if (!pairRef.current) {
+      await requestPairing();
+    }
+
+    const url = pairRef.current?.pairUrl;
+    if (!url) return;
+
+    try {
+      await Linking.openURL(url);
+      setOpened(true);
+    } catch {
+      setPhase("error");
+      setError("Could not open a browser. Open the link on any other device instead.");
+    }
+  }, [requestPairing]);
+
+  /**
+   * Wait for the approval.
    *
-   * COMING BACK FROM THE BROWSER CHECKS IMMEDIATELY
-   * The whole approval happens in a browser, so the app is backgrounded for the
-   * duration and the phone has usually suspended the JS timer entirely. Coming
-   * back and being told "waiting for you to approve it" for another two seconds,
-   * immediately after approving it, is the moment this screen feels broken. So a
-   * foreground transition cancels the pending timeout and asks now.
+   * Only runs once the browser has actually been opened. Polling before that would
+   * be asking the same question every two seconds at nobody.
    *
-   * That works with or without the deep link, in Expo Go or in the installed app,
-   * and on a platform where nothing handles naija:// at all.
+   * Checks immediately when the app comes back to the foreground: the person has
+   * been away signing in, and the phone has usually suspended this timer
+   * entirely. Coming back to "waiting for you to approve it" for another two
+   * seconds, straight after approving it, is what made this feel broken.
+   *
+   * The same check on a timer is the safety net for the case where the deep link
+   * back does not fire - a desktop browser, or a platform where nothing handles
+   * the scheme.
    */
   useEffect(() => {
-    if (status !== "waiting" || !code || !claimRef.current) return;
+    if (phase !== "waiting" || !opened) return;
+    if (!pairRef.current || !claimRef.current) return;
 
+    const { code } = pairRef.current;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
 
     async function check() {
       try {
-        const result: PollResult = await pollPairing(code!, claimRef.current!);
+        const result: PollResult = await pollPairing(code, claimRef.current!);
 
         if (cancelled) return;
 
         if (result.status === "ready") {
           // Persist first, then tell the app. If the process dies between the two,
-          // the token is still on disk and the next launch signs in - the reverse
-          // order would leave a signed-in device that forgets on restart.
+          // the token is still on disk and the next launch signs in - the other
+          // order leaves a device that forgets on restart.
           await saveSession(result.token, result.user.email);
-
-          // "connected" rather than "expired", which is what this used to set.
-          // Reusing an existing status to halt the loop also renders that status,
-          // so approving a device told the person it had expired - while the
-          // browser they approved it in said it had worked.
-          setStatus("connected");
+          setPhase("connected");
           onSignedIn(result.token);
           return;
         }
 
         if (result.status === "denied") {
-          setStatus("denied");
+          // Somebody pressed decline. Offer a fresh pairing rather than sitting on
+          // a dead one.
+          pairRef.current = null;
+          setPhase("error");
+          setError("That device was not approved.");
           return;
         }
 
         if (result.status === "expired") {
-          setStatus("expired");
+          pairRef.current = null;
+          setPhase("error");
+          setError("That took too long. Try again.");
           return;
         }
-      } catch (cause) {
-        if (cancelled) return;
-
-        // A single dropped request should not end the attempt - the phone may be
-        // on mobile data and blipping. Only a clear rejection stops the loop.
-        if (cause instanceof Error && "status" in cause && (cause as { status: number }).status === 401) {
-          setStatus("error");
-          setError(cause.message);
-          return;
-        }
+      } catch {
+        // A dropped request must not end the attempt - mobile data blips. Keep
+        // polling and let the server be the one to say it has expired.
       }
 
       if (!cancelled) {
@@ -177,15 +208,10 @@ export function SignInScreen({ onSignedIn }: { onSignedIn: (token: string) => vo
 
     void check();
 
-    // Held in a ref so the listener below can reach the current `check` without
-    // this effect having to depend on it - a new function identity each render
-    // would tear the subscription down and rebuild it constantly.
     const checkRef = { current: check };
 
     const onForeground = (next: string) => {
       if (next !== "active") return;
-
-      // Ask now rather than waiting out whatever is left of the interval.
       if (timer) clearTimeout(timer);
       void checkRef.current();
     };
@@ -197,192 +223,154 @@ export function SignInScreen({ onSignedIn }: { onSignedIn: (token: string) => vo
       if (timer) clearTimeout(timer);
       subscription.remove();
     };
-  }, [status, code, onSignedIn]);
+  }, [phase, opened, onSignedIn]);
+
+  if (phase === "connected") {
+    return (
+      <View style={styles.card}>
+        <ActivityIndicator color={theme.brand} />
+        <Text style={styles.body}>Signed in. Opening the shop…</Text>
+      </View>
+    );
+  }
+
+  if (phase === "error") {
+    return (
+      <View style={styles.card}>
+        <Text style={styles.title}>Could not sign in</Text>
+        <Text style={styles.body}>{error}</Text>
+        <Pressable
+          onPress={() => void startPairing()}
+          style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
+          accessibilityRole="button"
+        >
+          <Text style={styles.buttonText}>Try again</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   return (
-    <ScrollView
-      style={styles.screen}
-      contentContainerStyle={styles.content}
-      keyboardShouldPersistTaps="handled"
-    >
-      <Text style={styles.wordmark}>Naija Gadgets</Text>
-      <Text style={styles.tagline}>a home for quality gadgets</Text>
+    <View style={styles.card}>
+      <Text style={styles.title}>Sign in</Text>
+      <Text style={styles.body}>
+        Your cart follows you between this app and the website.
+      </Text>
 
-      <View style={styles.card}>
-        {status === "starting" ? (
+      <Pressable
+        onPress={() => void openBrowser()}
+        disabled={phase === "starting"}
+        style={({ pressed }) => [
+          styles.button,
+          phase === "starting" && styles.buttonDisabled,
+          pressed && styles.buttonPressed,
+        ]}
+        accessibilityRole="button"
+        accessibilityLabel="Continue with Google"
+      >
+        {phase === "starting" ? (
+          <ActivityIndicator size="small" color={theme.white} />
+        ) : (
           <>
-            <ActivityIndicator color={theme.brand} />
-            <Text style={styles.body}>Getting a sign-in code…</Text>
+            <GoogleMark />
+            <Text style={styles.buttonText}>Continue with Google</Text>
           </>
-        ) : null}
+        )}
+      </Pressable>
 
-        {status === "waiting" && code ? (
-          <>
-            <Text style={styles.cardTitle}>Open this on any browser</Text>
-            <Text style={styles.body}>
-              Sign in with the same Google account you use on the website, then press
-              “Connect this device”.
-            </Text>
+      {phase === "waiting" ? (
+        <View style={styles.waitingRow}>
+          <ActivityIndicator size="small" color={theme.brand} />
+          <Text style={styles.waitingText}>
+            {opened ? "Waiting for you to finish in the browser…" : "Ready"}
+          </Text>
+        </View>
+      ) : null}
 
-            <Pressable
-              onPress={() => {
-                if (pairUrl) void Linking.openURL(pairUrl);
-              }}
-              style={({ pressed }) => [
-                styles.codeBox,
-                pressed && styles.codeBoxPressed,
-              ]}
-              accessibilityRole="button"
-              accessibilityLabel={`Sign-in code ${code.replace("-", " ")}. Tap to open in a browser.`}
-            >
-              <Text style={styles.code}>{code.replace("-", " ")}</Text>
-              <Text style={styles.codeHint}>Tap to open</Text>
-            </Pressable>
-
-            <Pressable
-              onPress={() => {
-                if (code) void Clipboard.setStringAsync(code);
-              }}
-              style={styles.secondary}
-              accessibilityRole="button"
-            >
-              <Text style={styles.secondaryText}>Copy the code instead</Text>
-            </Pressable>
-
-            <View style={styles.waitingRow}>
-              <ActivityIndicator size="small" color={theme.brand} />
-              <Text style={styles.waitingText}>Waiting for you to approve it…</Text>
-            </View>
-          </>
-        ) : null}
-
-        {status === "connected" ? (
-          <>
-            <ActivityIndicator color={theme.brand} />
-            <Text style={styles.body}>Connected. Opening the shop…</Text>
-          </>
-        ) : null}
-
-        {status === "denied" ? (
-          <Retry
-            heading="That device was not approved."
-            body="Nothing has been connected. Start again if that was a mistake."
-            onRetry={begin}
-          />
-        ) : null}
-
-        {status === "expired" ? (
-          <Retry
-            heading="That code has expired."
-            body="Codes last 15 minutes. Here is a new one."
-            onRetry={begin}
-          />
-        ) : null}
-
-        {status === "error" ? (
-          <Retry heading="Could not sign in" body={error} onRetry={begin} />
-        ) : null}
-      </View>
-    </ScrollView>
+      <Text style={styles.footnote}>
+        Google opens in your browser. This app never sees your password.
+      </Text>
+    </View>
   );
 }
 
-function Retry({
-  heading,
-  body,
-  onRetry,
-}: {
-  heading: string;
-  body: string;
-  onRetry: () => void;
-}) {
+/**
+ * Google's mark, required by their brand guidelines on anything that says
+ * "Continue with Google".
+ *
+ * react-native-svg rather than an <svg> element, which does not exist in React
+ * Native - and rather than a PNG, which would have to be scaled and would go soft
+ * on a high-density screen. Same paths as src/components/GoogleSignInButton.tsx on
+ * the website, so the two buttons are visibly the same button.
+ */
+function GoogleMark() {
   return (
-    <>
-      <Text style={styles.cardTitle}>{heading}</Text>
-      <Text style={styles.body}>{body}</Text>
-      <Pressable onPress={onRetry} style={styles.primary} accessibilityRole="button">
-        <Text style={styles.primaryText}>Try again</Text>
-      </Pressable>
-    </>
+    <Svg width={18} height={18} viewBox="0 0 24 24">
+      <Path
+        fill="#4285F4"
+        d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.4a5.5 5.5 0 0 1-2.4 3.6v3h3.9c2.3-2.1 3.6-5.2 3.6-8.8Z"
+      />
+      <Path
+        fill="#34A853"
+        d="M12 24c3.2 0 5.9-1.1 7.9-2.9l-3.9-3c-1.1.7-2.4 1.2-4 1.2-3.1 0-5.7-2.1-6.6-4.9H1.4v3.1A12 12 0 0 0 12 24Z"
+      />
+      <Path
+        fill="#FBBC05"
+        d="M5.4 14.4a7.2 7.2 0 0 1 0-4.6V6.7H1.4a12 12 0 0 0 0 10.8l4-3.1Z"
+      />
+      <Path
+        fill="#EA4335"
+        d="M12 4.8c1.8 0 3.4.6 4.5 1.8l3.4-3.4A12 12 0 0 0 1.4 6.7l4 3.1C6.3 6.9 8.9 4.8 12 4.8Z"
+      />
+    </Svg>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: theme.canvas },
-  content: { padding: 24, paddingTop: 72, alignItems: "stretch" },
-
-  wordmark: {
-    fontSize: 32,
+  card: { alignItems: "stretch" },
+  title: {
+    fontSize: 22,
     fontWeight: "800",
     color: theme.ink,
-    letterSpacing: -0.5,
-  },
-  tagline: {
-    fontSize: 15,
-    fontStyle: "italic",
-    color: theme.inkMuted,
-    marginTop: 2,
-    marginBottom: 32,
-  },
-
-  card: {
-    backgroundColor: theme.white,
-    borderRadius: theme.radiusPanel,
-    borderWidth: 1,
-    borderColor: theme.line,
-    padding: 24,
-    alignItems: "center",
-  },
-  cardTitle: {
-    fontSize: 19,
-    fontWeight: "700",
-    color: theme.ink,
-    textAlign: "center",
+    letterSpacing: -0.3,
   },
   body: {
-    fontSize: 15,
+    fontSize: 14.5,
     color: theme.inkMuted,
-    textAlign: "center",
-    marginTop: 8,
-    lineHeight: 22,
+    marginTop: 6,
+    lineHeight: 21,
   },
 
-  codeBox: {
-    marginTop: 24,
-    backgroundColor: theme.brandTint,
-    borderRadius: theme.radius,
-    paddingVertical: 20,
-    paddingHorizontal: 16,
+  button: {
+    flexDirection: "row",
     alignItems: "center",
-    alignSelf: "stretch",
+    justifyContent: "center",
+    gap: 10,
+    backgroundColor: theme.brand,
+    borderRadius: theme.radius,
+    paddingVertical: 15,
+    marginTop: 18,
+    minHeight: 52,
   },
-  codeBoxPressed: { backgroundColor: "#d2d5ff" },
-  code: {
-    fontSize: 38,
-    fontWeight: "800",
-    color: theme.brand,
-    // Wide tracking so the characters cannot be read as a different code.
-    letterSpacing: 6,
-  },
-  codeHint: { fontSize: 13, color: theme.brand, marginTop: 6 },
-
-  secondary: { marginTop: 14, padding: 8 },
-  secondaryText: { color: theme.inkMuted, fontSize: 14, textDecorationLine: "underline" },
+  buttonPressed: { backgroundColor: theme.brandBright },
+  buttonDisabled: { opacity: 0.7 },
+  buttonText: { color: theme.white, fontWeight: "800", fontSize: 15 },
+  mark: { width: 18, height: 18 },
 
   waitingRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    marginTop: 20,
+    marginTop: 16,
+    justifyContent: "center",
   },
-  waitingText: { color: theme.inkMuted, fontSize: 14 },
+  waitingText: { color: theme.inkMuted, fontSize: 13.5 },
 
-  primary: {
+  footnote: {
+    fontSize: 11.5,
+    color: theme.inkMuted,
     marginTop: 20,
-    backgroundColor: theme.brand,
-    borderRadius: theme.radius,
-    paddingVertical: 13,
-    paddingHorizontal: 28,
+    textAlign: "center",
+    lineHeight: 17,
   },
-  primaryText: { color: theme.white, fontWeight: "700", fontSize: 15 },
 });
