@@ -17,13 +17,19 @@ export interface CartItem {
   /** Stock at the time it was added, used to cap the quantity stepper. */
   maxStock: number;
   /**
-   * The product photo, root-relative.
+   * The product photo, absolute.
    *
-   * Optional, and only populated when a line came out of the database rather than
-   * out of localStorage. The website renders its own images from the slug and
-   * ignores this; it exists so the mobile app's cart can show the product rather
-   * than the emoji fallback, which renders as a tofu box for several of the
-   * catalogue. /api/cart makes it absolute on the way out.
+   * This used to be populated only when a line came out of the database, and the
+   * comment above it claimed the website "renders its own images from the slug and
+   * ignores this". Both halves were wrong: ProductCard renders
+   * `product.image_url`, not anything derived from the slug, and AddToCartButton
+   * never passed the field along at all - so the guest cart page fell back to the
+   * emoji for every line while the product grid three centimetres away showed the
+   * real photograph.
+   *
+   * Optional rather than required because a hand-edited or pre-existing basket in
+   * localStorage will not have it. The cart falls back to the emoji, which renders
+   * as a tofu box on iOS for several of the catalogue.
    */
   imageUrl?: string | null;
 }

@@ -55,29 +55,72 @@ export default function CartPage() {
 
       <ul className="divide-y divide-ink-200 rounded-xl border border-ink-200 bg-white dark:divide-ink-700 dark:border-ink-700 dark:bg-ink-800">
         {items.map((item) => (
-          <li key={item.productId} className="flex items-center gap-4 p-4">
+          /* TWO TIERS BELOW sm, ONE LINE ABOVE IT.
+
+             This was a single flex row holding five things: a 56px thumbnail, the
+             name, the stepper, a fixed 112px line total and Remove. That is about
+             380px of fixed content before the name gets a single pixel, so on a
+             360px phone the name block - the only child allowed to shrink, via
+             min-w-0 - collapsed to nothing and the stepper painted straight over
+             the price.
+
+             min-w-0 was doing its job. The bug was the layout it was defending:
+             nothing on that line was allowed to wrap, so shrinking the name to
+             zero was the only thing flex had left to do.
+
+             The fix is the one the mobile app already uses for the same screen on
+             the same phone. The name and price go on the top tier where the name
+             has the full width; the controls go underneath, where they are
+             reachable and cannot push anything off screen. sm and up keeps the
+             one-line version, which is what a desktop has room for. */
+          <li
+            key={item.productId}
+            className="flex flex-wrap items-center gap-x-4 gap-y-3 p-4"
+          >
             <span
-              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-2xl dark:bg-ink-700"
+              className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-brand-50 text-2xl dark:bg-ink-700"
               aria-hidden="true"
             >
-              {item.emoji}
+              {/* The photograph where there is one. Half this catalogue's emoji
+                  render as a tofu box on iOS, and a cart is the screen most likely
+                  to be looked at rather than shopped - a row of meaningless glyphs
+                  is what you see instead. */}
+              {item.imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={item.imageUrl}
+                  alt=""
+                  className="h-full w-full object-cover"
+                  loading="lazy"
+                />
+              ) : (
+                item.emoji
+              )}
             </span>
 
-            <div className="min-w-0 flex-1">
+            {/* grow + basis-full below sm: taking the whole line is what pushes the
+                controls onto the second tier. min-w-0 stays, so a long product
+                name truncates instead of forcing the row wider than the screen. */}
+            <div className="min-w-0 flex-1 basis-full sm:basis-auto">
               <Link
                 href={`/products/${item.slug}`}
                 className="block truncate font-medium hover:text-brand-700"
               >
                 {item.name}
               </Link>
-              <p className="text-sm text-ink-500">{formatNaira(item.price)} each</p>
+              <p className="text-sm text-ink-500">
+                {formatNaira(item.price)} each
+                {item.quantity > 1 ? (
+                  <span className="sm:hidden"> · {formatNaira(item.price * item.quantity)}</span>
+                ) : null}
+              </p>
             </div>
 
             <div className="flex items-center gap-1 rounded-lg border border-ink-300 dark:border-ink-600">
               <button
                 type="button"
                 onClick={() => setQuantity(item.productId, item.quantity - 1)}
-                className="px-3 py-1.5 hover:bg-ink-100 dark:hover:bg-ink-700"
+                className="px-3 py-2.5 hover:bg-ink-100 dark:hover:bg-ink-700"
                 aria-label={`Decrease quantity of ${item.name}`}
               >
                 −
@@ -89,21 +132,24 @@ export default function CartPage() {
                 type="button"
                 onClick={() => setQuantity(item.productId, item.quantity + 1)}
                 disabled={item.quantity >= item.maxStock}
-                className="px-3 py-1.5 hover:bg-ink-100 disabled:opacity-40 dark:hover:bg-ink-700"
+                className="px-3 py-2.5 hover:bg-ink-100 disabled:opacity-40 dark:hover:bg-ink-700"
                 aria-label={`Increase quantity of ${item.name}`}
               >
                 +
               </button>
             </div>
 
-            <p className="w-28 text-right font-semibold tabular-nums">
+            {/* Hidden below sm because it is repeated at the end of the unit-price
+                line above. Showing it twice on a phone would be two different
+                numbers on one row. */}
+            <p className="hidden w-28 text-right font-semibold tabular-nums sm:block">
               {formatNaira(item.price * item.quantity)}
             </p>
 
             <button
               type="button"
               onClick={() => remove(item.productId)}
-              className="text-sm text-ink-400 underline hover:text-red-600"
+              className="min-h-[44px] px-2 text-sm text-ink-400 underline hover:text-red-600"
               aria-label={`Remove ${item.name} from cart`}
             >
               Remove

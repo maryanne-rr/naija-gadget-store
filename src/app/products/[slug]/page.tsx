@@ -199,6 +199,7 @@ export default async function ProductPage({ params }: PageProps<"/products/[slug
               price={product.price}
               emoji={product.emoji}
               maxStock={product.stock}
+              imageUrl={product.image_url}
             />
             <Link
               href="/cart"

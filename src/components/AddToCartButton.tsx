@@ -17,9 +17,26 @@ interface Props {
   price: number;
   emoji: string;
   maxStock: number;
+  /**
+   * Carried into the basket so the cart page can show the photograph.
+   *
+   * It was missing here, which is why the cart rendered as a column of emoji
+   * even though every product card three centimetres away was showing the real
+   * picture - the URL was on the card, just never handed to the thing that
+   * remembered the basket.
+   */
+  imageUrl?: string | null;
 }
 
-export function AddToCartButton({ productId, name, slug, price, emoji, maxStock }: Props) {
+export function AddToCartButton({
+  productId,
+  name,
+  slug,
+  price,
+  emoji,
+  maxStock,
+  imageUrl,
+}: Props) {
   const { add, hydrated } = useCart();
   const [justAdded, setJustAdded] = useState(false);
   const timeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -41,7 +58,7 @@ export function AddToCartButton({ productId, name, slug, price, emoji, maxStock 
   }
 
   function handleClick() {
-    add({ productId, name, slug, price, emoji, maxStock });
+    add({ productId, name, slug, price, emoji, maxStock, imageUrl: imageUrl ?? null });
 
     setJustAdded(true);
     if (timeout.current) clearTimeout(timeout.current);

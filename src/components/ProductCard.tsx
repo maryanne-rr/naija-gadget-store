@@ -142,6 +142,7 @@ export function ProductCard({ product }: { product: Product }) {
             price={product.price}
             emoji={product.emoji}
             maxStock={product.stock}
+            imageUrl={product.image_url}
           />
         </div>
       </div>
