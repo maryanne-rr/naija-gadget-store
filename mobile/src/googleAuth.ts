@@ -42,52 +42,78 @@ export interface MobileSessionResponse {
 }
 
 /**
- * Pull the id_token out of the URL Google redirected back to.
+ * Pull a single value out of the URL Google redirected back to.
  *
- * WHY THIS IS PARSED BY HAND
- * expo-web-browser hands back the whole redirect URL, not parsed parameters. Two
- * shapes have to be handled, and mixing them up is the classic OAuth mistake:
+ * WHY `sources` IS A LIST AND NOT A SEARCH ORDER
+ * Which parts of the URL are acceptable depends entirely on what the value is:
  *
- *   naija://callback#id_token=xxx&...   implicit flow - the FRAGMENT
- *   naija://callback?id_token=xxx&...   the query string
+ *   an authorization code arrives in the QUERY STRING. It is not a credential - it
+ *   is worthless without the verifier only this app holds - so a query is the right
+ *   place for it, and both parts are searched for convenience.
  *
- * The fragment is checked first because that is where the implicit flow puts it,
- * and a token in a query string is the one that leaks into server logs. Taking the
- * query first would "work" for PKCE and quietly send an id_token through every
- * access log on the way - which is why the order here is the other way round.
+ *   an id_token arrives in the FRAGMENT, and it IS a live credential for the
+ *   person's account. A query string is what ends up in server access logs, in
+ *   Referer headers and in browser history. So the fragment is the ONLY place it
+ *   is read from - not "preferred", not "first", only.
  *
- * Returns null rather than throwing: a missing token is a failed sign-in, and the
- * caller already has a fallback for that.
+ * The distinction matters because the looser version passes every test that only
+ * feeds it a well-formed URL: the token is right where Google put it, so the
+ * function appears to work. The two only differ when something is WRONG, which is
+ * exactly when it must not be trusted.
  */
-export function idTokenFromRedirect(url: string): string | null {
-  const fragmentAt = url.indexOf("#");
+function valueFromRedirect(
+  url: string,
+  key: string,
+  sources: ("query" | "fragment")[],
+): string | null {
   const queryAt = url.indexOf("?");
+  const fragmentAt = url.indexOf("#");
 
-  // The fragment wins if it is present, even when a query string is there too.
-  let source: string | null = null;
+  const query =
+    queryAt === -1
+      ? null
+      : url.slice(queryAt + 1, fragmentAt === -1 ? url.length : Math.max(fragmentAt, queryAt));
 
-  if (fragmentAt !== -1) {
-    source = url.slice(fragmentAt + 1);
-  } else if (queryAt !== -1) {
-    const end = url.indexOf("#", queryAt);
-    source = end === -1 ? url.slice(queryAt + 1) : url.slice(queryAt + 1, end);
-  }
+  const fragment = fragmentAt === -1 ? null : url.slice(fragmentAt + 1);
 
-  if (!source) return null;
+  for (const part of sources) {
+    const source = part === "query" ? query : fragment;
+    if (source === null) continue;
 
-  for (const pair of source.split("&")) {
-    const [key, value] = pair.split("=");
-    if (key !== "id_token") continue;
-    try {
-      // Google percent-encodes the token, which contains characters that are
-      // meaningful in a URL.
-      return decodeURIComponent(value ?? "");
-    } catch {
-      return value ?? null;
+    for (const pair of source.split("&")) {
+      const [name, value] = pair.split("=");
+      if (name !== key) continue;
+
+      try {
+        return decodeURIComponent(value ?? "");
+      } catch {
+        return value ?? null;
+      }
     }
   }
 
   return null;
+}
+
+/**
+ * The authorization code, which arrives in the query string.
+ *
+ * The fragment is searched too: Google does not put a code there, so nothing is
+ * gained by pretending it cannot appear, and nothing is lost.
+ */
+export function codeFromRedirect(url: string): string | null {
+  return valueFromRedirect(url, "code", ["query", "fragment"]);
+}
+
+/**
+ * The id_token, which arrives in the fragment.
+ *
+ * Fragment only. There is no fallback to the query, because there is no legitimate
+ * case for one and a token in a query string is a credential in whatever logs the
+ * URL.
+ */
+export function idTokenFromRedirect(url: string): string | null {
+  return valueFromRedirect(url, "id_token", ["fragment"]);
 }
 
 /**

@@ -67,70 +67,112 @@ function summary() {
 // keeps the two honest.
 // ---------------------------------------------------------------------------
 
-function idTokenFromRedirect(url) {
-  const fragmentAt = url.indexOf("#");
+function valueFromRedirect(url, key, sources) {
   const queryAt = url.indexOf("?");
+  const fragmentAt = url.indexOf("#");
 
-  let source = null;
+  const query = queryAt === -1
+    ? null
+    : url.slice(queryAt + 1, fragmentAt === -1 ? url.length : Math.max(fragmentAt, queryAt));
 
-  if (fragmentAt !== -1) {
-    source = url.slice(fragmentAt + 1);
-  } else if (queryAt !== -1) {
-    const end = url.indexOf("#", queryAt);
-    source = end === -1 ? url.slice(queryAt + 1) : url.slice(queryAt + 1, end);
-  }
+  const fragment = fragmentAt === -1 ? null : url.slice(fragmentAt + 1);
 
-  if (!source) return null;
-
-  for (const pair of source.split("&")) {
-    const [key, value] = pair.split("=");
-    if (key !== "id_token") continue;
-    try {
-      return decodeURIComponent(value ?? "");
-    } catch {
-      return value ?? null;
+  for (const part of sources) {
+    const source = part === "query" ? query : fragment;
+    if (source === null) continue;
+    for (const pair of source.split("&")) {
+      const [name, value] = pair.split("=");
+      if (name !== key) continue;
+      try {
+        return decodeURIComponent(value ?? "");
+      } catch {
+        return value ?? null;
+      }
     }
   }
 
   return null;
 }
 
-console.log(`\n${dim("id_token extraction from the redirect URL")}\n`);
+const codeFromRedirect = (url) => valueFromRedirect(url, "code", ["query", "fragment"]);
+const idTokenFromRedirect = (url) => valueFromRedirect(url, "id_token", ["fragment"]);
 
-// The implicit flow puts it in the fragment. This is the common case on Android.
+console.log(`\n${dim("authorization code, from the query string")}\n`);
+
+// The app now uses the code flow, so this is the shape it actually receives.
+check(
+  "reads the code from the query",
+  codeFromRedirect("naija://callback?code=4/0AX4&scope=openid&state=xyz"),
+  "4/0AX4",
+);
+
+check(
+  "keeps a code containing = and /",
+  codeFromRedirect("naija://callback?code=4/0AbC-dEf%3D%3D"),
+  "4/0AbC-dEf==",
+);
+
+check(
+  "still finds one in the fragment, since a code is not a secret",
+  codeFromRedirect("naija://callback#code=IN-FRAGMENT"),
+  "IN-FRAGMENT",
+);
+
+check("returns null when Google reports an error", codeFromRedirect("naija://callback?error=access_denied"), null);
+check("returns null for a bare callback", codeFromRedirect("naija://callback"), null);
+
+console.log(`\n${dim("id_token, from the fragment - and never the query")}\n`);
+
+// This is the leak. An id_token is a live credential for somebody's account, and a
+// query string ends up in access logs, Referer headers and history. So the fragment
+// is read first and the query is never preferred - a test with only a query
+// present proves nothing, because the correct answer is null and it has to be
+// asserted as such.
 check(
   "reads the token from the fragment",
   idTokenFromRedirect("naija://callback#id_token=HEADER.PAYLOAD.SIG&state=xyz"),
   "HEADER.PAYLOAD.SIG",
 );
 
-// The fragment is checked FIRST on purpose. A query string is what ends up in
-// server access logs, so a token must never be sourced from one when a fragment
-// is present.
 check(
-  "prefers the fragment over the query",
-  idTokenFromRedirect("naija://callback?id_token=FROM_QUERY#id_token=FROM_FRAGMENT"),
-  "FROM_FRAGMENT",
+  "REFUSES a token that arrives in the query string",
+  idTokenFromRedirect("naija://callback?id_token=LEAKED"),
+  null,
 );
 
 check(
-  "reads the token from the query when there is no fragment",
-  idTokenFromRedirect("naija://callback?id_token=HEADER.PAYLOAD.SIG&scope=openid"),
-  "HEADER.PAYLOAD.SIG",
+  "prefers the fragment when a query also carries one",
+  idTokenFromRedirect("naija://callback?id_token=FROM-QUERY#id_token=FROM-FRAGMENT"),
+  "FROM-FRAGMENT",
 );
 
-// A real JWT is base64url and can carry "=" padding, so splitting on "=" must not
-// truncate it.
 check(
   "keeps a token that contains = padding",
   idTokenFromRedirect("naija://callback#id_token=aaa.bbb.ccc%3D%3D&state=s"),
   "aaa.bbb.ccc==",
 );
 
-check("returns null with no token", idTokenFromRedirect("naija://callback#error=access_denied"), null);
-check("returns null for a bare callback", idTokenFromRedirect("naija://callback"), null);
-check("returns null for a Google error", idTokenFromRedirect("naija://callback#error=access_denied&error_description=nope"), null);
 check("ignores other parameters", idTokenFromRedirect("naija://callback#state=abc&scope=email"), null);
+
+console.log(`\n${dim("the two flows must not be confused")}\n`);
+
+// The bug that cost a phone test: PKCE is only valid with the code flow, and
+// asking for an id_token with code_challenge_method attached is a protocol error
+// that Google rejects outright rather than ignoring.
+const request = await readFile("mobile/src/screens/SignInScreen.tsx", "utf8");
+
+check("the app asks for a code", /responseType:\s*"code"/.test(request), true);
+check("and PKCE, which belongs to that flow", /usePKCE:\s*true/.test(request), true);
+check(
+  "it no longer asks for an implicit id_token",
+  /responseType:\s*"id_token"/.test(request),
+  false,
+);
+check(
+  "the verifier is sent with the exchange",
+  /code_verifier/.test(request),
+  true,
+);
 
 // ---------------------------------------------------------------------------
 console.log(`\n${dim("the two strings that must agree")}\n`);

@@ -12,8 +12,16 @@
  * It is a static server on purpose. The app is pre-built by `expo export`, so there
  * is nothing to compile and nothing to watch - it serves files and stops.
  *
- * Cached, because the review loop re-fetches the same bundle on every reload and
- * there is no reason to make the browser wait for 600 kB twice.
+ * NOT cached, and that is the point.
+ *
+ * This was max-age=300, and it defeated the entire purpose. The browser served a
+ * stale bundle while the file on disk had just been rebuilt, so the review looked
+ * at a build that no longer existed - an error page for a CORS problem that had
+ * already been fixed, staring back out of a cached response.
+ *
+ * A preview exists to show what is on disk right now. Caching belongs to
+ * production, where the artefact is immutable and named by hash. This one is
+ * neither, and 600 kB served from localhost takes no time worth saving.
  *
  *   node scripts/serve-web-preview.mjs [directory] [port]
  */
@@ -65,7 +73,9 @@ const server = createServer(async (request, response) => {
 
     response.writeHead(200, {
       "Content-Type": TYPES[extname(file)] ?? "application/octet-stream",
-      "Cache-Control": "public, max-age=300",
+      // no-store, not no-cache: no-cache still allows a conditional revalidation
+      // round trip, which is a request that can itself be answered from a cache.
+      "Cache-Control": "no-store, must-revalidate",
     });
     response.end(body);
   } catch {

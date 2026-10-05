@@ -9,12 +9,12 @@ import {
   View,
 } from "react-native";
 import Svg, { Path } from "react-native-svg";
-import { AuthRequest } from "expo-auth-session";
+import { AuthRequest, exchangeCodeAsync } from "expo-auth-session";
 import { discovery } from "expo-auth-session/providers/google";
 import * as WebBrowser from "expo-web-browser";
 import { createPairing, pollPairing, type PollResult } from "../api";
 import { PAIR_POLL_MS, APP_SCHEME, GOOGLE_REDIRECT_PATH } from "../config";
-import { androidClientId, exchangeGoogleToken, idTokenFromRedirect } from "../googleAuth";
+import { androidClientId, codeFromRedirect, exchangeGoogleToken } from "../googleAuth";
 import { readOrCreateClaimSecret, saveSession } from "../storage";
 import { theme } from "../theme";
 
@@ -153,11 +153,25 @@ export function SignInScreen({
         // declares "scheme": "naija", and that declaration is what builds the
         // intent filter - so this string and app.json have to agree.
         redirectUri: `${APP_SCHEME}://${GOOGLE_REDIRECT_PATH}`,
-        // PKCE. Without it a token intercepted in the browser tab could be
-        // replayed, and the code verifier is what ties the returned token to this
-        // app rather than to whoever watched the redirect.
+        // THE AUTHORIZATION CODE FLOW, WITH PKCE
+        //
+        // The previous attempt asked for an id_token with usePKCE on, and Google
+        // refused it precisely:
+        //
+        //   Parameter not allowed for this message type: code_challenge_method
+        //
+        // PKCE belongs to the code flow. An implicit-flow token is returned
+        // directly by the authorisation endpoint, so there is nothing for a
+        // verifier to bind to - and sending one anyway is a protocol error rather
+        // than a harmless extra.
+        //
+        // So the code flow it is: Google returns a code, which is worthless on its
+        // own, and the app redeems it with the verifier that generated it. The
+        // token then comes from Google's token endpoint rather than the URL, which
+        // is both the flow Google expects from a new public client and the one
+        // where no credential ever passes through a browser address bar.
+        responseType: "code",
         usePKCE: true,
-        responseType: "id_token",
       });
 
       // A browser tab that closes itself when it is done. Google renders the
@@ -174,9 +188,8 @@ export function SignInScreen({
         `${APP_SCHEME}://${GOOGLE_REDIRECT_PATH}`,
       );
 
-      // The result is a full URL rather than parsed parameters, and the token may
-      // be in the fragment or the query depending on the flow Google chose. Both
-      // are handled in idTokenFromRedirect.
+      // The result is a full URL rather than parsed parameters, and the code
+      // arrives in the query string.
       if (result.type !== "success") {
         // dismissed or cancelled: the person changed their mind, which is not a
         // failure worth shouting about. The pairing is offered instead.
@@ -184,9 +197,33 @@ export function SignInScreen({
         return;
       }
 
-      const idToken = idTokenFromRedirect(result.url);
+      const code = codeFromRedirect(result.url);
+
+      if (!code) {
+        setPhase("waiting");
+        return;
+      }
+
+      // Redeem the code for tokens. The verifier is what proves this app is the
+      // one that asked, so the code cannot be replayed by anything that merely
+      // saw the redirect - and no client secret is needed, because Google treats
+      // an Android client with PKCE as a public client.
+      const tokens = await exchangeCodeAsync(
+        {
+          clientId: androidClientId(),
+          code,
+          redirectUri: `${APP_SCHEME}://${GOOGLE_REDIRECT_PATH}`,
+          extraParams: { code_verifier: request.codeVerifier ?? "" },
+        },
+        discovery,
+      );
+
+      const idToken = tokens.idToken;
 
       if (!idToken) {
+        // openid was requested, so there should always be one. A missing id_token
+        // means the scope did not take, and guessing at which of the other token
+        // fields to use instead would be worse than falling back.
         setPhase("waiting");
         return;
       }
