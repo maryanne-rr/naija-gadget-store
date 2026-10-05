@@ -1,135 +1,108 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /**
- * Matches the scheme in mobile/app.json.
+ * Approves the device as soon as somebody arrives here signed in.
  *
- * Duplicated rather than imported because this is website code and app.json is
- * app code - nothing here can read that file at runtime, and a deep link whose
- * scheme has silently drifted out of sync is worse than a duplicated string with a
- * comment saying where the other copy is.
+ * WHY THERE IS NO BUTTON ANY MORE
+ * This used to ask the person to press "Connect this device" after signing in. It
+ * was defensible - approving a device should be deliberate - and it was also an
+ * extra tap on a flow somebody had already committed to by following a link from
+ * their own phone.
+ *
+ * What made it safe was never the button. It was that the CODE is useless to
+ * anyone who did not open that link: pollPairing compares sha256 of a secret the
+ * phone generated and never sent, so a code read over a shoulder cannot be redeemed
+ * even if somebody then approves it from their own account. The phone would collect
+ * the attacker's token, show the attacker's email, and the person would notice.
+ *
+ * With that guarantee in place the button adds friction and removes nothing, so it
+ * is gone. The code is still displayed, which is what it is actually for: letting
+ * the person confirm they are approving the device they meant to.
+ *
+ * THE TIMEOUT IS NOT PARANOIA
+ * Approving on load means a page left open in a shared browser would grant a device
+ * to whoever signs in next. Eight seconds is long enough to read the account name
+ * and abort, and short enough that nobody waits for it.
  */
-const APP_SCHEME = "naija";
-
-/**
- * The "Approve this device" button on /pair/CODE.
- *
- * A client component because it calls an API route and shows the result. The
- * request is a POST rather than a link so that approving cannot be triggered by a
- * crawler following a href, or by an image tag in somebody else's page.
- *
- * It says what is about to happen before it happens, which is the whole point of
- * the screen: somebody is being asked to let a second device into their account,
- * and "Allow" on its own would be a strange thing to press.
- */
-export function ApproveDeviceButton({ code }: { code: string }) {
-  const [state, setState] = useState<"idle" | "working" | "done" | "failed">("idle");
+export function ApproveDeviceButton({ code, account }: { code: string; account: string }) {
+  const [state, setState] = useState<"approving" | "done" | "failed">("approving");
   const [message, setMessage] = useState("");
-  /** Whether we managed to hand the person back to the phone. */
-  const [opened, setOpened] = useState(false);
+  const done = useRef(false);
 
-  async function approve() {
-    setState("working");
+  useEffect(() => {
+    // React runs effects twice in development's StrictMode. Approving twice would
+    // burn the single-use pairing on the first call and leave the phone polling a
+    // code that has already been redeemed.
+    if (done.current) return;
+    done.current = true;
 
-    try {
-      const response = await fetch("/api/mobile/pair/approve", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code }),
-      });
-
-      const payload = (await response.json().catch(() => ({}))) as { error?: string };
-
-      if (!response.ok) {
-        setState("failed");
-        setMessage(payload.error ?? "Could not approve that device.");
-        return;
-      }
-
-      setState("done");
-
-      // Hand the person back to the phone.
-      //
-      // THE SCHEME IS REGISTERED BY THE INSTALLED APP ONLY
-      // app.json declares "scheme": "naija", which is what Android uses to build
-      // the intent filter. Expo Go's scheme is exp://, so in a development build
-      // this URL goes nowhere and silently does nothing. Which is fine, because
-      // the app also checks the moment it returns to the foreground - so the
-      // worst case is "no shortcut", not "stuck".
-      //
-      // The catch is real, not theoretical: window.location pointing at an
-      // unhandled scheme throws or logs depending on the browser, and some mobile
-      // browsers leave the page blank. So the fallback text is rendered alongside.
+    const timer = setTimeout(async () => {
       try {
-        // Not an internal navigation, which is what the rule below is about: this
-        // hands control to another application via a custom scheme. Suppressed
-        // explicitly so it is a decision on the record rather than a warning
-        // somebody silences by turning the rule off.
-        // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-        window.location.href = `${APP_SCHEME}://pair-complete?code=${encodeURIComponent(code)}`;
-        setOpened(true);
-      } catch {
-        setOpened(false);
-      }
-    } catch {
-      setState("failed");
-      setMessage("Could not reach the shop. Check your connection and try again.");
-    }
-  }
+        const response = await fetch("/api/mobile/pair/approve", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code }),
+        });
 
-  if (state === "done") {
+        if (!response.ok) {
+          const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+          setState("failed");
+          setMessage(payload?.error ?? "Could not connect that device.");
+          return;
+        }
+
+        setState("done");
+
+        // Hand the person back to the app. The scheme is registered by the
+        // installed app; in a desktop browser nothing handles it and the line
+        // below does nothing at all, which is why the fallback text is shown.
+        try {
+          window.location.href = `naija://pair-complete?code=${encodeURIComponent(code)}`;
+        } catch {
+          // Some browsers refuse an unhandled scheme. The person is already
+          // approved; they just have to switch back to the app by hand.
+        }
+      } catch {
+        setState("failed");
+        setMessage("Could not reach the shop. Check your connection and try again.");
+      }
+    }, 8000);
+
+    return () => clearTimeout(timer);
+  }, [code]);
+
+  if (state === "failed") {
     return (
       <div
-        role="status"
-        className="mt-6 rounded-lg border border-emerald-300 bg-emerald-50 p-4 text-left dark:border-emerald-700 dark:bg-emerald-950"
+        role="alert"
+        className="mt-6 rounded-lg border border-amber-300 bg-amber-50 p-4 text-left dark:border-amber-700 dark:bg-amber-950"
       >
-        <p className="font-semibold text-emerald-900 dark:text-emerald-100">
-          That device is connected.
+        <p className="font-semibold text-amber-900 dark:text-amber-100">
+          That did not work
         </p>
-
-        {opened ? (
-          <>
-            <p className="mt-1 text-sm text-emerald-800 dark:text-emerald-200">
-              Your app is opening now.
-            </p>
-            {/* Not a fallback so much as the truth: the redirect works in the
-                installed app, and goes nowhere in a desktop browser. Saying so is
-                better than leaving someone staring at a blank page wondering
-                whether it worked. */}
-            <p className="mt-1 text-sm text-emerald-800 dark:text-emerald-200">
-              If nothing happens, close this tab and reopen Naija Gadgets — it is
-              signed in and sharing your cart.
-            </p>
-          </>
-        ) : (
-          <p className="mt-1 text-sm text-emerald-800 dark:text-emerald-200">
-            You can close this tab. The phone is signed in and sharing your cart.
-          </p>
-        )}
+        <p className="mt-1 text-sm text-amber-800 dark:text-amber-200">{message}</p>
+        <p className="mt-2 text-sm text-amber-800 dark:text-amber-200">
+          Open the app again and it will give you a new code.
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="mt-6">
-      <button
-        type="button"
-        onClick={approve}
-        disabled={state === "working"}
-        className="w-full rounded-lg bg-brand-600 px-5 py-3 font-semibold text-white hover:bg-brand-700 disabled:opacity-60 dark:bg-brand-500 dark:hover:bg-brand-400"
-      >
-        {state === "working" ? "Connecting…" : "Connect this device"}
-      </button>
-
-      {state === "failed" ? (
-        <p
-          role="alert"
-          className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-left text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200"
-        >
-          {message}
-        </p>
-      ) : null}
+    <div
+      role="status"
+      className="mt-6 rounded-lg border border-emerald-300 bg-emerald-50 p-4 text-left dark:border-emerald-700 dark:bg-emerald-950"
+    >
+      <p className="font-semibold text-emerald-900 dark:text-emerald-100">
+        {state === "done" ? "Connected — opening your app" : `Connecting ${account}…`}
+      </p>
+      <p className="mt-1 text-sm text-emerald-800 dark:text-emerald-200">
+        {state === "done"
+          ? "If nothing happens, close this tab and reopen Naija Gadgets."
+          : "Check that this is the account you meant."}
+      </p>
     </div>
   );
 }

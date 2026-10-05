@@ -29,18 +29,19 @@ import { theme } from "../theme";
  * in between telling you to wait for yourself.
  *
  * The pairing is still the mechanism - the phone cannot prove who it is on its
- * own, and it never sees a Google password - but it is now invisible. Tapping the
+ * own, and it never sees a Google password - but it is invisible. Tapping the
  * button opens the browser at the right address with the code already in it. The
- * person signs in with Google, presses Connect, and the browser hands them back
- * to the app. Nobody ever reads the code; the server uses it to know which device
- * asked.
+ * person picks an account, the page approves itself, and the browser hands them
+ * back to the app. Nobody ever reads the code; the server uses it to know which
+ * device asked.
  *
- * WHY A BROWSER RATHER THAN GOOGLE OAUTH DIRECTLY
- * A native app would normally run OAuth itself with a redirect the OS can route
- * back. Expo Go could not do that - it only opens through Expo's proxy - and
- * although the app is now a standalone build, doing it properly needs a second,
- * Android-type OAuth client in Google Cloud with the signing key's SHA-1. That is
- * two fiddly steps for a flow that works today.
+ * WHY A BROWSER, WHICH LOOKS LIKE THE LESSER OPTION
+ * It is not one. A native app would normally run OAuth itself with a redirect the
+ * OS can route back, and that code is here and working - but Google will not render
+ * an account chooser for an Android OAuth client until that client has been through
+ * app verification, which takes days and is not something this project can rush.
+ * Until then the native path produces an "Access blocked" page from Google, so it
+ * is a secondary control rather than the main button.
  *
  * The pairing also guarantees something native OAuth would not: the account comes
  * from the WEBSITE's own Auth.js session, so the phone is bound to the same
@@ -249,7 +250,11 @@ export function SignInScreen({
    * that does not exist.
    */
   const openBrowser = useCallback(async () => {
-    if (!pairRef.current) {
+    // A pairing is fetched up front rather than on tap, so the button opens
+    // something immediately instead of showing a spinner while a round trip
+    // happens. If the first request failed, or the code has been spent, this asks
+    // for a new one rather than reopening a URL that cannot work.
+    if (!pairRef.current || !claimRef.current) {
       await requestPairing();
     }
 
@@ -259,6 +264,11 @@ export function SignInScreen({
     try {
       await Linking.openURL(url);
       setOpened(true);
+      // Leaving the error screen on success is done here rather than left to
+      // requestPairing, which only runs when a new pairing was needed - so
+      // retrying with the existing one used to keep showing "Could not sign in"
+      // underneath the browser that had just opened.
+      setPhase("waiting");
     } catch {
       setPhase("error");
       setError("Could not open a browser. Open the link on any other device instead.");
@@ -363,11 +373,19 @@ export function SignInScreen({
         <Text style={styles.title}>Could not sign in</Text>
         <Text style={styles.body}>{error}</Text>
 
-        {/* Both routes offered, not just a retry of the one that failed. The
-            native path can fail for reasons retrying will not fix - no Play
-            Services, a token the shop refuses - and the pairing always works. */}
+        {/* The retry is the same path as the main button, and it asks for a fresh
+            pairing first.
+
+            That last part matters: the common way to land here is an expired or
+            spent code, and reopening the old URL would just be another failure. The
+            two buttons also do not sit in the same order as the sign-in screen,
+            which used to lead with native here and put the working path underneath
+            as if it were a lesser option. */}
         <Pressable
-          onPress={() => void signInNatively()}
+          onPress={() => {
+            pairRef.current = null;
+            void openBrowser();
+          }}
           style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
           accessibilityRole="button"
         >
@@ -376,11 +394,11 @@ export function SignInScreen({
         </Pressable>
 
         <Pressable
-          onPress={() => void openBrowser()}
+          onPress={() => void signInNatively()}
           style={styles.linkButton}
           accessibilityRole="button"
         >
-          <Text style={styles.linkText}>Sign in with a browser instead</Text>
+          <Text style={styles.linkText}>Sign in here instead, without leaving the app</Text>
         </Pressable>
       </View>
     );
@@ -394,17 +412,17 @@ export function SignInScreen({
       </Text>
 
       <Pressable
-        onPress={() => void signInNatively()}
-        disabled={phase === "starting" || phase === "native"}
+        onPress={() => void openBrowser()}
+        disabled={phase === "starting"}
         style={({ pressed }) => [
           styles.button,
-          (phase === "starting" || phase === "native") && styles.buttonDisabled,
+          phase === "starting" && styles.buttonDisabled,
           pressed && styles.buttonPressed,
         ]}
         accessibilityRole="button"
         accessibilityLabel="Continue with Google"
       >
-        {phase === "starting" || phase === "native" ? (
+        {phase === "starting" ? (
           <ActivityIndicator size="small" color={theme.white} />
         ) : (
           <>
@@ -414,22 +432,35 @@ export function SignInScreen({
         )}
       </Pressable>
 
-      {/*
-        The fallback, shown once the primary path has had its chance. It is not a
-        leftover from before native sign-in existed - it is the only path that works
-        when Google Play Services is missing, the network is captive-portal wifi, or
-        a token comes back the shop will not accept. A sign-in button with nothing
-        behind it is a dead end.
-      */}
-      {phase === "waiting" ? (
-        <Pressable
-          onPress={() => void openBrowser()}
-          style={styles.linkButton}
-          accessibilityRole="button"
-        >
-          <Text style={styles.linkText}>Sign in with a browser instead</Text>
-        </Pressable>
-      ) : null}
+      {/* Native sign-in, demoted.
+
+        It used to be the primary button and it still is not usable: Google refuses
+        to show an account chooser for this Android OAuth client until the client has
+        been through app verification, which is a queue measured in days, not a bug.
+
+        Leaving it as the primary meant that somebody tapping "Continue with Google"
+        was shown "Access blocked: Authorization Error" by Google before the working
+        path ever ran. An error page is a worse first impression than a browser tab,
+        and it made a working flow look broken.
+
+        It is kept because it is the better experience the day verification lands, and
+        because it is the only path that works when Google Play Services is missing or
+        the network is captive-portal wifi. One line, plainly labelled, rather than a
+        fallback that only appears after something has visibly failed - a control you
+        have to go looking for reads as the real button, and the one above reads as the
+        safety net. */}
+      <Pressable
+        onPress={() => void signInNatively()}
+        disabled={phase === "starting" || phase === "native"}
+        style={styles.linkButton}
+        accessibilityRole="button"
+      >
+        {phase === "native" ? (
+          <ActivityIndicator size="small" color={theme.brand} />
+        ) : (
+          <Text style={styles.linkText}>Sign in here instead, without leaving the app</Text>
+        )}
+      </Pressable>
 
       {phase === "waiting" ? (
         <View style={styles.waitingRow}>

@@ -8,10 +8,11 @@ import { getSession } from "@/lib/auth";
  * /pair/[code] - approve a phone, in the browser.
  *
  * This is the step that makes "log in to the website and the app with the same
- * account" true rather than hoped for. The phone cannot run Google OAuth inside
- * Expo Go (see supabase/006-device-pairing.sql), so it shows a code and waits;
- * this page is opened in a browser that is already signed in, and pressing
- * "Connect this device" binds that code to the account behind the session.
+ * account" true rather than hoped for. The phone cannot complete sign-in on its
+ * own - see mobile/src/screens/SignInScreen.tsx - so it opens this page in a
+ * browser and waits. This page is opened at an address that already contains the
+ * pairing code, nobody types anything, and once the visitor is signed in the
+ * device is approved and the browser hands them back to the app.
  *
  * The account comes from the website's own Auth.js session, so the phone ends up
  * with a token for the same users.id - and therefore the same cart_items rows.
@@ -55,23 +56,24 @@ export default async function PairPage({ params }: PageProps<"/pair/[code]">) {
 
         {userId && account ? (
           <>
-            {/* The code is only shown once somebody is signed in, and only as a
-                confirmation that they connected the device they meant to.
+            {/* The account is stated first and in full, because approval happens
+                automatically now (see ApproveDeviceButton). This line is the last
+                chance to notice the wrong account and close the tab.
 
-                It used to be the first thing on the page, signed out or not. That
-                put an eight-character code in front of someone who had opened a
-                link from their phone and simply wanted to pick an account - which
-                read as though the app were still asking them to do the typing the
-                app already did for them. */}
+                The code is still on the page, and still only once somebody is signed
+                in, so the phone's code can be matched against what the browser is
+                about to grant. It used to be the first thing on the page, signed out
+                or not, which read as though the app were asking someone to type what
+                the app had already done for them. */}
             <p className="mt-4 text-sm text-ink-600 dark:text-ink-300">
-              This will let the phone signed in as
+              Connecting your phone as
             </p>
             <p className="mt-1 font-semibold">{account}</p>
             <p className="mt-1 font-mono text-xs tracking-widest text-ink-400">
               {normalised}
             </p>
 
-            <ApproveDeviceButton code={normalised} />
+            <ApproveDeviceButton code={normalised} account={account} />
           </>
         ) : (
           <>
@@ -83,8 +85,8 @@ export default async function PairPage({ params }: PageProps<"/pair/[code]">) {
             <div className="mt-6">
               <GoogleSignInButton
                 label="Continue with Google"
-                // Comes back to THIS page after sign-in, so the Connect button is
-                // waiting. The code never leaves the URL.
+                // Comes back to THIS page after sign-in, so the approval
+                // happens without another tap. The code never leaves the URL.
                 redirectTo={`/pair/${normalised}`}
                 className="w-full rounded-lg border border-ink-300 px-5 py-2.5 font-semibold hover:bg-ink-100 dark:border-ink-600 dark:hover:bg-ink-700"
               />

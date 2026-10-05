@@ -42,24 +42,30 @@ the machine's LAN address, which `expo start` prints.
 
 ## Signing in
 
-The app does not run Google OAuth itself. Expo Go can only be opened through
-Expo's proxy URL, so the redirect URI Google would need is one that does not exist
-until `expo start` has run, and changes if the Expo account or slug changes.
+The app runs Google OAuth itself — there is a code path for it, using the
+authorization code flow with PKCE, and it works at the protocol level. Google will
+not render an account chooser for an Android OAuth client until that client has been
+through **app verification**, though, so on an unverified client it shows
+"Access blocked". It is therefore the secondary control on the sign-in screen
+("Sign in here instead, without leaving the app"), and the primary button uses the
+pairing below.
 
-Instead it pairs:
+## The default sign-in flow
 
-1. The app asks for a code and shows it — e.g. `KX7M 92QB`.
-2. Open <https://naija-gadget-store.vercel.app/pair/KX7M-92QB> on any browser.
-3. Sign in with the **same Google account as the website**.
-4. Press **Connect this device**.
-5. The app notices within about two seconds.
+1. Tap **Continue with Google** in the app.
+2. The browser opens at `/pair/<code>`. **Nothing is typed** — the code is already in
+   the address.
+3. Pick the **same Google account as the website**.
+4. The page approves itself and hands you back to the app.
+5. The app notices within about two seconds, by polling.
 
 The approval runs through the website's own Auth.js session, so the phone gets a
 token for the same `users.id` — which is the same cart. Codes last 15 minutes and
 work once.
 
-You can also tap the code on the phone to open the link directly, or press "Copy
-the code instead" and paste it on a laptop.
+Nothing on screen asks you to read or enter a code. If you would rather see it — to
+open the link on a laptop instead of the phone's browser — it is on the pair page,
+signed in, at small print, and the app never shows it.
 
 ## Testing the sync
 
